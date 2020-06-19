@@ -16,7 +16,7 @@
    <children>
       <HBox layoutX="-2.0" prefHeight="27.0" prefWidth="606.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
          <children>
-            <MenuBar maxWidth="1.7976931348623157E308" prefHeight="29.0" prefWidth="601.0" minWidth="Infinity">
+            <MenuBar maxWidth="1.7976931348623157E308" prefHeight="29.0" prefWidth="601.0" minWidth="Infinity" fx:id="mnuBar">
               <menus>
                 <Menu mnemonicParsing="false" text="File">
                   <items>

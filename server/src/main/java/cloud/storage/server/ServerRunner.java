@@ -17,7 +17,7 @@ public class ServerRunner {
             ServerBootstrap b = new ServerBootstrap();
             b.group(bossGroup, workerGroup).channel(NioServerSocketChannel.class).childHandler(new ChannelInitializer<SocketChannel>() {
                 protected void initChannel(SocketChannel socketChannel) throws Exception {
-                    socketChannel.pipeline().addLast(new StringToByteHandler(), new FirstInHandler());
+                    socketChannel.pipeline().addLast( new FirstInHandler());
                 }
             });
             System.out.println("Server has been started");

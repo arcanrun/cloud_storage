@@ -1,11 +1,11 @@
 package withoutclient;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+
+import java.io.*;
 import java.net.Socket;
-import java.util.Arrays;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
 
 public class Main {
     private static Socket socket;
@@ -18,19 +18,45 @@ public class Main {
             socket = new Socket("localhost", 8189);
             in = new DataInputStream(socket.getInputStream());
             out = new DataOutputStream(socket.getOutputStream());
-            out.write("HELLO! I AM CLIENT!".getBytes());
-            byte[] dataFromServer = new byte[1024];
 
-            int read = in.read(dataFromServer);
-            while (read != -1) {
-                System.out.println(read);
-                for (byte b : dataFromServer) {
-                    System.out.print((char)b);
+
+            byte[] buffer = new byte[256];
+
+            Path file = Paths.get("client", "client_storage", "from_client_min.txt");
+            FileInputStream fis = new FileInputStream(file.toFile());
+
+            int count = 0;
+            long fileSize = (file.toFile().length());
+            if (fileSize < buffer.length) {
+                byte[] lessBuffer = new byte[(int) fileSize];
+                int read = fis.read(lessBuffer);
+                count += read;
+                out.write(lessBuffer);
+            } else {
+                while (true) {
+                    int read = fis.read(buffer);
+                    count += read;
+                    out.write(buffer);
+                    if ((fileSize - count) < buffer.length) {
+                        byte[] leftBuffer = new byte[(int) (fileSize - count)];
+                        read = fis.read(leftBuffer);
+                        count += read;
+                        out.write(leftBuffer);
+                        break;
+                    }
+
                 }
-                read = in.read(dataFromServer);
             }
 
+            System.out.println("END CLIENT");
+            System.out.println();
+            System.out.println("READ: " + count);
+
+            in.close();
+            out.close();
+
         } catch (IOException e) {
+
             e.printStackTrace();
         }
 

@@ -15,7 +15,5 @@ public class StringToByteHandler extends ChannelOutboundHandlerAdapter {
         ctx.writeAndFlush(data);
 
 
-
-
     }
 }

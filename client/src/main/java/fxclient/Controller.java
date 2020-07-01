@@ -1,5 +1,6 @@
 package fxclient;
 
+import javafx.application.Platform;
 import javafx.beans.property.SimpleLongProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -7,11 +8,9 @@ import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
+import utils.FileWorker;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.net.Socket;
 import java.net.URL;
 import java.nio.file.Files;
@@ -69,36 +68,65 @@ public class Controller implements Initializable {
 
     private void connect() {
         try {
+            buffer = new byte[256];
             socket = new Socket(ADDR, PORT);
             in = new DataInputStream(socket.getInputStream());
             out = new DataOutputStream(socket.getOutputStream());
+
+
+            Thread t = new Thread(() -> {
+                try {
+                    while (true) {
+                        int read = in.read(buffer);
+                        for (byte b : buffer) {
+                            System.out.print((char) b);
+                        }
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    try {
+                        in.close();
+                        out.close();
+                    } catch (IOException ioException) {
+                        ioException.printStackTrace();
+
+                        showAlert("Error while close connections");
+
+
+                    }
+
+                }
+
+
+            });
+            t.setDaemon(true);
+            t.start();
         } catch (IOException e) {
             e.printStackTrace();
             showAlert("Error while connecting to server");
 
         }
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while (true) {
-                    try {
-                        int read = in.read(buffer);
-                        for (byte b : buffer) {
-                            System.out.println((char) b);
-                        }
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-
-                }
-            }
-        }).start();
     }
 
     public void uploadFileToServer() {
+
         if (clientTable.isFocused()) {
-            System.out.println(clientTable.getSelectionModel().getSelectedItem());
+            FileInfo fileToSend = clientTable.getSelectionModel().getSelectedItem();
+
+            if (!fileToSend.getType().equals("DIR")) {
+                try {
+                    FileWorker.bytesToFile(buffer, fileToSend.getFileInputStream(), this.out, fileToSend.getPath(), fileToSend.getSize());
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    showAlert("Error while uploading file to server");
+                }
+            }
         }
+//        updateView();
+    }
+
+    private void updateView() {
+        throw new RuntimeException("NOT YET IMPL");
     }
 
     public void showAlert(String msg) {

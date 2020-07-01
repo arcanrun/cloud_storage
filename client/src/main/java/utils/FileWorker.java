@@ -28,7 +28,7 @@ public class FileWorker {
 //            System.out.println("END CLIENT");
 
 
-    private static void bytesToFile(byte[] buffer, InputStream in, OutputStream out, Path file, long fileSize) throws IOException {
+    public static void bytesToFile(byte[] buffer, InputStream in, OutputStream out, Path file, long fileSize) throws IOException {
 
         int count = 0;
 

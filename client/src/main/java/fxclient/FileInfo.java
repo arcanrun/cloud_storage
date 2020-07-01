@@ -1,11 +1,14 @@
 package fxclient;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.nio.file.Path;
 
 public class FileInfo {
     private String name;
     private String type;
     private Long size;
+    private Path path;
 
     public FileInfo(String name, String type, Long size) {
         this.name = name;
@@ -16,6 +19,7 @@ public class FileInfo {
 
     public FileInfo(Path path) {
         if (path.toFile().isFile()) {
+            this.path = path;
             String fileNameWithType = path.getFileName().toString();
             this.name = fileNameWithType.substring(0, fileNameWithType.lastIndexOf("."));
             this.type = fileNameWithType.substring(fileNameWithType.lastIndexOf(".") + 1);
@@ -28,6 +32,14 @@ public class FileInfo {
 
         }
 
+    }
+
+    public FileInputStream getFileInputStream() throws FileNotFoundException {
+        return new FileInputStream(path.toFile());
+    }
+
+    public Path getPath() {
+        return path;
     }
 
     public String getName() {

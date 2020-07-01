@@ -18,7 +18,7 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
 
 
     public FirstInHandler() {
-        file = Paths.get("server", "server_storage", "img.jpg");
+        file = Paths.get("server", "server_storage", "img2.png");
         try {
             fos = new FileOutputStream(file.toFile(), true);
         } catch (FileNotFoundException e) {

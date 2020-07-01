@@ -5,22 +5,31 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 
+import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public class FirstInHandler extends ChannelInboundHandlerAdapter {
-    Path file;
-    FileOutputStream fos;
-    FileInputStream fis;
+    private Path file;
+    private FileOutputStream fos;
+    private FileInputStream fis;
+    private Path serverPath;
+    private long acceptingFileSize;
+    private long countAcceptingBytes;
 
+    private enum State {
+        FILE, FILE_NAME, FILE_SIZE, FILE_ACCEPTING, AWAIT;
+    }
+
+    private State currentState;
 
     public FirstInHandler() {
-
-
+        currentState = State.AWAIT;
+        serverPath = Paths.get("server", "server_storage");
     }
+
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
@@ -31,7 +40,6 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
 
         byte[] buffer = new byte[256];
         ByteBuf data = ctx.alloc().buffer(buffer.length);
-
 
 
         int count = 0;
@@ -73,8 +81,6 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
         System.out.println("READ: " + count);
 
 
-
-
     }
 
     @Override
@@ -85,21 +91,61 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-//        Path file = Paths.get("server", "server_storage", "img2.png");
-//        try {
-//            FileOutputStream fos = new FileOutputStream(file.toFile(), true);
-//        } catch (FileNotFoundException e) {
-//            e.printStackTrace();
-//        }
+        System.out.println(currentState);
 
         ByteBuf byteBuf = ((ByteBuf) msg);
 
-        while (byteBuf.readableBytes() > 0) {
-            fos.write((char) byteBuf.readByte());
+        if (currentState == State.AWAIT) {
+            countAcceptingBytes = 0L;
+            if (byteBuf.readByte() == (byte) 15) {
+                logAndSwitchState(State.FILE);
+            }
+
         }
-        byteBuf.release();
+        if (currentState == State.FILE) {
+
+                int sizeOfName = byteBuf.readInt();
+                System.out.println("length of file name: " + sizeOfName);
+                byte[] nameInBytes = new byte[sizeOfName];
+                byteBuf.readBytes(nameInBytes);
+                fos = new FileOutputStream(serverPath.resolve(new String(nameInBytes)).toFile());
+                logAndSwitchState(State.FILE_SIZE);
+
+        }
+        if (currentState == State.FILE_SIZE) {
+            acceptingFileSize = byteBuf.readLong();
+            logAndSwitchState(State.FILE_ACCEPTING);
+
+        }
+        if (currentState == State.FILE_ACCEPTING) {
+            while (byteBuf.readableBytes() > 0) {
+                fos.write(byteBuf.readByte());
+                countAcceptingBytes++;
+                if (acceptingFileSize == countAcceptingBytes) {
+                    System.out.println("File has been accepted : " + countAcceptingBytes);
+                    logAndSwitchState(State.AWAIT);
+                    fos.close();
+                    break;
+                }
+
+            }
+        }
+        System.out.println();
+        System.out.println();
+        System.out.println(acceptingFileSize);
+        System.out.println(countAcceptingBytes);
+
+        if (byteBuf.readableBytes() == 0) {
+            byteBuf.release();
+        }
 
 
+    }
+
+    private void logAndSwitchState(State newState) {
+
+        System.out.println("STATE SWITCHED FROM [" + currentState + "] TO [" + newState + "]");
+        currentState = newState;
     }
 
     @Override

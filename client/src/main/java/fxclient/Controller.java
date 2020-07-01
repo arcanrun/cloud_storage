@@ -10,6 +10,7 @@ import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import utils.FileWorker;
 
+import javax.xml.stream.events.DTD;
 import java.io.*;
 import java.net.Socket;
 import java.net.URL;
@@ -28,6 +29,18 @@ public class Controller implements Initializable {
     private static final String ADDR = "localhost";
     private static final int PORT = 8189;
 
+    private enum DataTypes{
+     FILE((byte)15), SERVER_ERROR((byte)29);
+     byte signalByte;
+
+     DataTypes(byte signalByte){
+         this.signalByte = signalByte;
+     }
+
+     byte getSignalByte(){
+         return signalByte;
+     }
+    }
 
     @FXML
     private TextField pwd;
@@ -40,6 +53,9 @@ public class Controller implements Initializable {
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
+
+
+
         Path currentDir = Paths.get("client", "client_storage");
         pwd.setText(currentDir.toString());
 
@@ -113,8 +129,14 @@ public class Controller implements Initializable {
         if (clientTable.isFocused()) {
             FileInfo fileToSend = clientTable.getSelectionModel().getSelectedItem();
 
+
+
             if (!fileToSend.getType().equals("DIR")) {
                 try {
+                    out.write(DataTypes.FILE.getSignalByte());
+                    out.writeInt(fileToSend.getPath().getFileName().toString().getBytes().length);
+                    out.write(fileToSend.getPath().getFileName().toString().getBytes());
+                    out.writeLong(fileToSend.getSize());
                     FileWorker.bytesToFile(buffer, fileToSend.getFileInputStream(), this.out, fileToSend.getPath(), fileToSend.getSize());
                 } catch (IOException e) {
                     e.printStackTrace();

@@ -18,12 +18,7 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
 
 
     public FirstInHandler() {
-        file = Paths.get("server", "server_storage", "img2.png");
-        try {
-            fos = new FileOutputStream(file.toFile(), true);
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
+
 
     }
 
@@ -55,8 +50,6 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
             while (true) {
                 int read = fis.read(buffer);
                 count += read;
-
-
 //                data.writeBytes(buffer);
                 ctx.writeAndFlush(Unpooled.copiedBuffer(buffer));
 
@@ -92,6 +85,12 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+//        Path file = Paths.get("server", "server_storage", "img2.png");
+//        try {
+//            FileOutputStream fos = new FileOutputStream(file.toFile(), true);
+//        } catch (FileNotFoundException e) {
+//            e.printStackTrace();
+//        }
 
         ByteBuf byteBuf = ((ByteBuf) msg);
 

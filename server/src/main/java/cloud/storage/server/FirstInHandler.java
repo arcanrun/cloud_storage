@@ -5,6 +5,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -13,7 +14,7 @@ import java.nio.file.Paths;
 
 public class FirstInHandler extends ChannelInboundHandlerAdapter {
     private Path file;
-    private FileOutputStream fos;
+    private BufferedOutputStream bos;
     private FileInputStream fis;
     private Path serverPath;
     private long acceptingFileSize;
@@ -108,7 +109,7 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
                 System.out.println("length of file name: " + sizeOfName);
                 byte[] nameInBytes = new byte[sizeOfName];
                 byteBuf.readBytes(nameInBytes);
-                fos = new FileOutputStream(serverPath.resolve(new String(nameInBytes)).toFile());
+                bos = new BufferedOutputStream(new FileOutputStream(serverPath.resolve(new String(nameInBytes)).toFile()));
                 logAndSwitchState(State.FILE_SIZE);
 
         }
@@ -118,13 +119,14 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
 
         }
         if (currentState == State.FILE_ACCEPTING) {
+            System.out.println("READBLE BYTES: " + byteBuf.readableBytes());
             while (byteBuf.readableBytes() > 0) {
-                fos.write(byteBuf.readByte());
+                bos.write(byteBuf.readByte());
                 countAcceptingBytes++;
                 if (acceptingFileSize == countAcceptingBytes) {
                     System.out.println("File has been accepted : " + countAcceptingBytes);
                     logAndSwitchState(State.AWAIT);
-                    fos.close();
+                    bos.close();
                     break;
                 }
 

@@ -84,7 +84,7 @@ public class Controller implements Initializable {
 
     private void connect() {
         try {
-            buffer = new byte[256];
+            buffer = new byte[1024];
             socket = new Socket(ADDR, PORT);
             in = new DataInputStream(socket.getInputStream());
             out = new DataOutputStream(socket.getOutputStream());

@@ -1,10 +1,12 @@
-package fxclient;
+package utils;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.Serializable;
 import java.nio.file.Path;
 
-public class FileInfo {
+public class FileInfo implements Serializable {
+    private static final long serialVersionUID = 5193392663743561680L;
     private String name;
     private String type;
     private Long size;

@@ -1,14 +1,16 @@
 package cloud.storage.server;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.handler.codec.serialization.ObjectDecoder;
+import io.netty.handler.codec.serialization.ObjectEncoder;
+import utils.FileInfo;
 
 import java.io.BufferedOutputStream;
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -16,7 +18,7 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
     private Path file;
     private BufferedOutputStream bos;
     private FileInputStream fis;
-    private Path serverPath;
+    private Path serverRootPath;
     private long acceptingFileSize;
     private long countAcceptingBytes;
 
@@ -28,59 +30,23 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
 
     public FirstInHandler() {
         currentState = State.AWAIT;
-        serverPath = Paths.get("server", "server_storage");
+        serverRootPath = Paths.get("server", "server_storage");
     }
 
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        ByteBuf buf = ctx.alloc().buffer();
         System.out.println("User has been connected!");
-        Path file = Paths.get("server", "server_storage", "from_server.txt");
-        fis = new FileInputStream(file.toFile());
 
 
-        byte[] buffer = new byte[256];
-        ByteBuf data = ctx.alloc().buffer(buffer.length);
+        buf.writeByte((byte)25);
+        ctx.writeAndFlush(buf);
 
+        FileInfo fi = new FileInfo(serverRootPath.resolve("from_client_min.txt"));
 
-        int count = 0;
-        long fileSize = (file.toFile().length());
-
-        if (fileSize < buffer.length) {
-            byte[] lessBuffer = new byte[(int) fileSize];
-            int read = fis.read(lessBuffer);
-            count += read;
-
-            ByteBuf lessData = ctx.alloc().buffer(lessBuffer.length);
-            lessData.writeBytes(lessBuffer);
-            ctx.writeAndFlush(lessData);
-
-        } else {
-            while (true) {
-                int read = fis.read(buffer);
-                count += read;
-//                data.writeBytes(buffer);
-                ctx.writeAndFlush(Unpooled.copiedBuffer(buffer));
-
-                if ((fileSize - count) < buffer.length) {
-                    byte[] leftBuffer = new byte[(int) (fileSize - count)];
-                    read = fis.read(leftBuffer);
-                    count += read;
-
-                    ByteBuf leftData = ctx.alloc().buffer(leftBuffer.length);
-                    leftData.writeBytes(leftBuffer);
-                    ctx.writeAndFlush(leftData);
-
-                    break;
-                }
-
-            }
-        }
-
-
-        System.out.println();
-        System.out.println("READ: " + count);
-
+        System.out.println(fi);
+        ctx.writeAndFlush(fi);
 
     }
 
@@ -109,7 +75,7 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
                 System.out.println("length of file name: " + sizeOfName);
                 byte[] nameInBytes = new byte[sizeOfName];
                 byteBuf.readBytes(nameInBytes);
-                bos = new BufferedOutputStream(new FileOutputStream(serverPath.resolve(new String(nameInBytes)).toFile()));
+                bos = new BufferedOutputStream(new FileOutputStream(serverRootPath.resolve(new String(nameInBytes)).toFile()));
                 logAndSwitchState(State.FILE_SIZE);
 
         }

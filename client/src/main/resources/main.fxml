@@ -24,28 +24,20 @@
             </HBox>
             <TableView fx:id="clientTable" prefHeight="300.0" prefWidth="600.0" VBox.vgrow="ALWAYS"/>
         </VBox>
+
         <VBox prefHeight="328.0" prefWidth="600.0" HBox.hgrow="ALWAYS" maxWidth="Infinity">
-            <children>
-                <HBox maxWidth="Infinity" prefHeight="0.0" prefWidth="600.0">
-                    <children>
-                        <Button mnemonicParsing="false" text="^"/>
-                        <TextField maxWidth="Infinity" prefHeight="27.0" prefWidth="570.0" HBox.hgrow="ALWAYS"/>
-                    </children>
-                </HBox>
-                <TableView prefHeight="300.0" prefWidth="600.0" VBox.vgrow="ALWAYS">
-                    <columns>
-                        <TableColumn prefWidth="75.0" text="Name"/>
-                        <TableColumn prefWidth="75.0" text="type"/>
-                        <TableColumn prefWidth="75.0" text="date"/>
-                        <TableColumn prefWidth="75.0" text="size"/>
-                    </columns>
-                </TableView>
-            </children>
+            <HBox maxWidth="Infinity" prefHeight="0.0" prefWidth="600.0">
+                <Button mnemonicParsing="false" text="^"/>
+                <TextField fx:id="serverPwd" maxWidth="Infinity" prefHeight="27.0" prefWidth="570.0" HBox.hgrow="ALWAYS"/>
+            </HBox>
+            <TableView fx:id="serverTable" prefHeight="300.0" prefWidth="600.0" VBox.vgrow="ALWAYS"/>
+
         </VBox>
     </HBox>
     <HBox layoutY="363.0" prefHeight="44.0" prefWidth="600.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0"
           AnchorPane.rightAnchor="0.0">
-        <Button fx:id="uploadBtn" focusTraversable="false" onAction="#uploadFileToServer" maxWidth="Infinity" prefHeight="128.0"
+        <Button fx:id="uploadBtn" focusTraversable="false" onAction="#uploadFileToServer" maxWidth="Infinity"
+                prefHeight="128.0"
                 prefWidth="150.0" text="upload" HBox.hgrow="ALWAYS">
             <HBox.margin>
                 <Insets bottom="5.0" left="5.0" right="5.0" top="5.0"/>

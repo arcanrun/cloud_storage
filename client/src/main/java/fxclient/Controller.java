@@ -64,19 +64,13 @@ public class Controller implements Initializable {
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-
         connect();
-
-
         initClientTable();
-//        while (currentDirServer == null || filesIncurrentDirServer == null) {
-//            System.out.println("Loading...");
-//        }
         initServerTable();
-
     }
 
     private void initClientTable() {
+
         Path currentDir = Paths.get("client", "client_storage");
         pwd.setText(currentDir.toString());
 
@@ -93,6 +87,7 @@ public class Controller implements Initializable {
 
 
         clientTable.getColumns().addAll(nameColumn, typeColumn, sizeColumn);
+        clientTable.getItems().clear();
         try {
 
             clientTable.getItems().addAll(Files.list(currentDir).map(FileInfo::new).collect(Collectors.toList()));
@@ -116,7 +111,7 @@ public class Controller implements Initializable {
         TableColumn<FileInfo, Long> sizeColumn = new TableColumn<>("Size");
         sizeColumn.setCellValueFactory(param -> new SimpleObjectProperty(param.getValue().getSize()));
 
-
+        serverTable.getItems().clear();
         serverTable.getColumns().addAll(nameColumn, typeColumn, sizeColumn);
         if(filesIncurrentDirServer != null){
             serverTable.getItems().addAll(filesIncurrentDirServer);
@@ -153,10 +148,7 @@ public class Controller implements Initializable {
                         out.close();
                     } catch (IOException ioException) {
                         ioException.printStackTrace();
-
                         showAlert("Error while close connections");
-
-
                     }
 
                 }
@@ -177,7 +169,6 @@ public class Controller implements Initializable {
         if (clientTable.isFocused()) {
             FileInfo fileToSend = clientTable.getSelectionModel().getSelectedItem();
 
-
             if (!fileToSend.getType().equals("DIR")) {
                 try {
                     out.write(DataTypes.FILE.getSignalByte());
@@ -191,19 +182,22 @@ public class Controller implements Initializable {
                 }
             }
         }
-//        updateView();
     }
 
     private void updateUI() {
-        clientTable.getItems().clear();
-        serverTable.getItems().clear();
+
         Path currentDir = Paths.get("client", "client_storage");
+
+        serverTable.getItems().clear();
         serverTable.getItems().addAll(filesIncurrentDirServer);
-        try {
-            clientTable.getItems().addAll(Files.list(currentDir).map(FileInfo::new).collect(Collectors.toList()));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+
+//        try {
+//            clientTable.getItems().clear();
+//            clientTable.getItems().addAll(Files.list(currentDir).map(FileInfo::new).collect(Collectors.toList()));
+//        } catch (IOException e) {
+//            showAlert("Error while updating ui");
+//            e.printStackTrace();
+//        }
 
     }
 

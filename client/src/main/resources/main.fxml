@@ -28,7 +28,8 @@
         <VBox prefHeight="328.0" prefWidth="600.0" HBox.hgrow="ALWAYS" maxWidth="Infinity">
             <HBox maxWidth="Infinity" prefHeight="0.0" prefWidth="600.0">
                 <Button mnemonicParsing="false" text="^"/>
-                <TextField fx:id="serverPwd" maxWidth="Infinity" prefHeight="27.0" prefWidth="570.0" HBox.hgrow="ALWAYS"/>
+                <TextField fx:id="serverPwd" editable="false" maxWidth="Infinity" prefHeight="27.0" prefWidth="570.0"
+                           HBox.hgrow="ALWAYS"/>
             </HBox>
             <TableView fx:id="serverTable" prefHeight="300.0" prefWidth="600.0" VBox.vgrow="ALWAYS"/>
 
@@ -43,17 +44,20 @@
                 <Insets bottom="5.0" left="5.0" right="5.0" top="5.0"/>
             </HBox.margin>
         </Button>
-        <Button maxWidth="Infinity" prefHeight="125.0" prefWidth="150.0" text="download" HBox.hgrow="ALWAYS">
+        <Button maxWidth="Infinity" focusTraversable="false" prefHeight="125.0" prefWidth="150.0" text="download"
+                HBox.hgrow="ALWAYS">
             <HBox.margin>
                 <Insets bottom="5.0" left="5.0" right="5.0" top="5.0"/>
             </HBox.margin>
         </Button>
-        <Button maxWidth="Infinity" prefHeight="77.0" prefWidth="150.0" text="move" HBox.hgrow="ALWAYS">
+        <Button maxWidth="Infinity" focusTraversable="false" prefHeight="77.0" prefWidth="150.0" text="move"
+                disable="true" HBox.hgrow="ALWAYS">
             <HBox.margin>
                 <Insets bottom="5.0" left="5.0" right="5.0" top="5.0"/>
             </HBox.margin>
         </Button>
-        <Button maxWidth="Infinity" prefHeight="126.0" prefWidth="150.0" text="delete" HBox.hgrow="ALWAYS">
+        <Button maxWidth="Infinity" focusTraversable="false" prefHeight="126.0" prefWidth="150.0" text="delete"
+                disable="true" HBox.hgrow="ALWAYS">
             <HBox.margin>
                 <Insets bottom="5.0" left="5.0" right="5.0" top="5.0"/>
             </HBox.margin>

@@ -12,10 +12,13 @@ import java.io.BufferedOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class FirstInHandler extends ChannelInboundHandlerAdapter {
 
@@ -50,12 +53,12 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
 
         ctx.writeAndFlush(new DirInfo(serverCurrentDir));
 
+        List<FileInfo> arr = Files.list(serverCurrentDir).map(FileInfo::new).collect(Collectors.toList());
 
-        List<FileInfo> arr = new ArrayList<>();
-        arr.add(new FileInfo(serverCurrentDir.resolve("from_client_min.txt")));
+//        arr.add(new FileInfo(serverCurrentDir.resolve("from_client_min.txt")));
 
 
-        ctx.writeAndFlush(new ArrayList<>(arr));
+        ctx.writeAndFlush(arr);
         ctx.pipeline().remove(ObjectEncoder.class);
 
     }

@@ -17,6 +17,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.List;
 import java.util.ResourceBundle;
 import java.util.stream.Collectors;
@@ -68,7 +69,7 @@ public class Controller implements Initializable {
 
 
         initClientTable();
-        while (currentDirServer == null && filesIncurrentDirServer == null) {
+        while (currentDirServer == null || filesIncurrentDirServer == null) {
             System.out.println("Loading...");
         }
         initServerTable();
@@ -117,7 +118,7 @@ public class Controller implements Initializable {
 
 
         serverTable.getColumns().addAll(nameColumn, typeColumn, sizeColumn);
-        clientTable.getItems().addAll(filesIncurrentDirServer);
+        serverTable.getItems().addAll(filesIncurrentDirServer);
 
     }
 

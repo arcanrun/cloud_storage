@@ -6,11 +6,11 @@ import java.io.Serializable;
 import java.nio.file.Path;
 
 public class FileInfo implements Serializable {
-    private static final long serialVersionUID = 5193392663743561680L;
+    private static final long serialVersionUID = -1471688489463753111L;
     private String name;
     private String type;
     private Long size;
-    private Path path;
+    private transient Path path;
 
     public FileInfo(String name, String type, Long size) {
         this.name = name;

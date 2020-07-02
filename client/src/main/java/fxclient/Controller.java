@@ -6,8 +6,10 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
+import utils.DirInfo;
 import utils.FileInfo;
 import utils.FileWorker;
+
 
 import java.io.*;
 import java.net.Socket;
@@ -15,6 +17,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.ResourceBundle;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -23,9 +26,12 @@ public class Controller implements Initializable {
     private Socket socket;
     private DataInputStream in;
     private DataOutputStream out;
+    private ObjectDecoderInputStream odis;
     private byte[] buffer;
     private static final String ADDR = "localhost";
     private static final int PORT = 8189;
+    private String currentDirServer;
+    private List<FileInfo> filesIncurrentDirServer;
 
     private enum DataTypes {
         FILE((byte) 15), SERVER_ERROR((byte) 29);
@@ -60,18 +66,11 @@ public class Controller implements Initializable {
 
         connect();
 
-        ObjectDecoderInputStream odis = new ObjectDecoderInputStream(socket.getInputStream(), 100 * 1024 * 1024);
-        FileInfo h = null;
-        try {
-            h = ((FileInfo) odis.readObject());
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        System.out.println("FileInfo from server"+h);
-        System.out.println("NAME: "+h.getName());
+
         initClientTable();
+        while (currentDirServer == null && filesIncurrentDirServer == null) {
+            System.out.println("Loading...");
+        }
         initServerTable();
 
     }
@@ -103,9 +102,7 @@ public class Controller implements Initializable {
     }
 
     public void initServerTable() {
-        // from server
-//        Path currentDir = Paths.get("client", "client_storage");
-//        serverPwd.setText(currentDir.toString());
+        serverPwd.setText(currentDirServer);
 
         TableColumn<FileInfo, String> nameColumn = new TableColumn<>("Name");
         nameColumn.setCellValueFactory(param -> new SimpleStringProperty(param.getValue().getName()));
@@ -119,13 +116,9 @@ public class Controller implements Initializable {
         sizeColumn.setCellValueFactory(param -> new SimpleObjectProperty(param.getValue().getSize()));
 
 
-//        clientTable.getColumns().addAll(nameColumn, typeColumn, sizeColumn);
-//        try {
-//            clientTable.getItems().addAll(Files.list(currentDir).map(FileInfo::new).collect(Collectors.toList()));
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//            showAlert("Error while updating files list");
-//        }
+        serverTable.getColumns().addAll(nameColumn, typeColumn, sizeColumn);
+        clientTable.getItems().addAll(filesIncurrentDirServer);
+
     }
 
     private void connect() {
@@ -134,20 +127,23 @@ public class Controller implements Initializable {
             socket = new Socket(ADDR, PORT);
             in = new DataInputStream(socket.getInputStream());
             out = new DataOutputStream(socket.getOutputStream());
-
-
+            odis = new ObjectDecoderInputStream(socket.getInputStream());
             Thread t = new Thread(() -> {
                 try {
                     while (true) {
                         byte firstByte = in.readByte();
                         if (firstByte == (byte) 25) {
+                            currentDirServer = ((DirInfo) odis.readObject()).getPath();
+                            System.out.println(currentDirServer);
                             System.out.println("LIST OF SERVERS FILES");
-                            System.out.println("0----");
+                            filesIncurrentDirServer = (List<FileInfo>) odis.readObject();
+                            System.out.println(filesIncurrentDirServer);
+                            System.out.println("FileInfo from server");
+
                         }
 
-
                     }
-                } catch (IOException ) {
+                } catch (IOException | ClassNotFoundException e) {
                     e.printStackTrace();
                     try {
                         in.close();

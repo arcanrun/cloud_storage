@@ -3,22 +3,26 @@ package cloud.storage.server;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.handler.codec.serialization.ObjectDecoder;
 import io.netty.handler.codec.serialization.ObjectEncoder;
+import utils.DirInfo;
 import utils.FileInfo;
+
 
 import java.io.BufferedOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.nio.file.Files;
+
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 
 public class FirstInHandler extends ChannelInboundHandlerAdapter {
+
     private Path file;
     private BufferedOutputStream bos;
     private FileInputStream fis;
-    private Path serverRootPath;
+    private Path serverCurrentDir;
     private long acceptingFileSize;
     private long countAcceptingBytes;
 
@@ -30,23 +34,29 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
 
     public FirstInHandler() {
         currentState = State.AWAIT;
-        serverRootPath = Paths.get("server", "server_storage");
+        serverCurrentDir = Paths.get("server", "server_storage");
     }
 
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        ByteBuf buf = ctx.alloc().buffer();
         System.out.println("User has been connected!");
 
-
+        ByteBuf buf = ctx.alloc().buffer();
         buf.writeByte((byte)25);
         ctx.writeAndFlush(buf);
 
-        FileInfo fi = new FileInfo(serverRootPath.resolve("from_client_min.txt"));
+        ctx.pipeline().addFirst(new ObjectEncoder());
 
-        System.out.println(fi);
-        ctx.writeAndFlush(fi);
+        ctx.writeAndFlush(new DirInfo(serverCurrentDir));
+
+
+        List<FileInfo> arr = new ArrayList<>();
+        arr.add(new FileInfo(serverCurrentDir.resolve("from_client_min.txt")));
+
+
+        ctx.writeAndFlush(new ArrayList<>(arr));
+        ctx.pipeline().remove(ObjectEncoder.class);
 
     }
 
@@ -75,7 +85,7 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
                 System.out.println("length of file name: " + sizeOfName);
                 byte[] nameInBytes = new byte[sizeOfName];
                 byteBuf.readBytes(nameInBytes);
-                bos = new BufferedOutputStream(new FileOutputStream(serverRootPath.resolve(new String(nameInBytes)).toFile()));
+                bos = new BufferedOutputStream(new FileOutputStream(serverCurrentDir.resolve(new String(nameInBytes)).toFile()));
                 logAndSwitchState(State.FILE_SIZE);
 
         }

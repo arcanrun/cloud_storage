@@ -12,6 +12,7 @@ import java.io.BufferedOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -44,22 +45,7 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         System.out.println("User has been connected!");
-
-        ByteBuf buf = ctx.alloc().buffer();
-        buf.writeByte((byte)25);
-        ctx.writeAndFlush(buf);
-
-        ctx.pipeline().addFirst(new ObjectEncoder());
-
-        ctx.writeAndFlush(new DirInfo(serverCurrentDir));
-
-        List<FileInfo> arr = Files.list(serverCurrentDir).map(FileInfo::new).collect(Collectors.toList());
-
-//        arr.add(new FileInfo(serverCurrentDir.resolve("from_client_min.txt")));
-
-
-        ctx.writeAndFlush(arr);
-        ctx.pipeline().remove(ObjectEncoder.class);
+        sendFilesList(ctx);
 
     }
 
@@ -74,12 +60,15 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
         System.out.println(currentState);
 
         ByteBuf byteBuf = ((ByteBuf) msg);
-
+//        byte firstByte = byteBuf.readByte();
         if (currentState == State.AWAIT) {
             countAcceptingBytes = 0L;
             if (byteBuf.readByte() == (byte) 15) {
                 logAndSwitchState(State.FILE);
             }
+//            if(firstByte == (byte) 25){
+//                sendFilesList(ctx);
+//            }
 
         }
         if (currentState == State.FILE) {
@@ -106,6 +95,7 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
                     System.out.println("File has been accepted : " + countAcceptingBytes);
                     logAndSwitchState(State.AWAIT);
                     bos.close();
+                    sendFilesList(ctx);
                     break;
                 }
 
@@ -121,6 +111,21 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
         }
 
 
+    }
+
+    private void sendFilesList(ChannelHandlerContext ctx) throws IOException {
+        ByteBuf buf = ctx.alloc().buffer();
+        buf.writeByte((byte)25);
+        ctx.writeAndFlush(buf);
+
+        ctx.pipeline().addFirst(new ObjectEncoder());
+
+        ctx.writeAndFlush(new DirInfo(serverCurrentDir));
+
+        List<FileInfo> arr = Files.list(serverCurrentDir).map(FileInfo::new).collect(Collectors.toList());
+
+        ctx.writeAndFlush(arr);
+        ctx.pipeline().remove(ObjectEncoder.class);
     }
 
     private void logAndSwitchState(State newState) {

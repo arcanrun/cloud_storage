@@ -35,7 +35,7 @@ public class Controller implements Initializable {
     private List<FileInfo> filesIncurrentDirServer;
 
     private enum DataTypes {
-        FILE((byte) 15), SERVER_ERROR((byte) 29);
+        FILE((byte) 15), SERVER_ERROR((byte) 29), UI_UPDATE_BY_SERVER_CHANGE((byte)25);
         byte signalByte;
 
         DataTypes(byte signalByte) {
@@ -69,9 +69,9 @@ public class Controller implements Initializable {
 
 
         initClientTable();
-        while (currentDirServer == null || filesIncurrentDirServer == null) {
-            System.out.println("Loading...");
-        }
+//        while (currentDirServer == null || filesIncurrentDirServer == null) {
+//            System.out.println("Loading...");
+//        }
         initServerTable();
 
     }
@@ -118,7 +118,9 @@ public class Controller implements Initializable {
 
 
         serverTable.getColumns().addAll(nameColumn, typeColumn, sizeColumn);
-        serverTable.getItems().addAll(filesIncurrentDirServer);
+        if(filesIncurrentDirServer != null){
+            serverTable.getItems().addAll(filesIncurrentDirServer);
+        }
 
     }
 
@@ -133,14 +135,14 @@ public class Controller implements Initializable {
                 try {
                     while (true) {
                         byte firstByte = in.readByte();
-                        if (firstByte == (byte) 25) {
+                        if (firstByte == DataTypes.UI_UPDATE_BY_SERVER_CHANGE.getSignalByte()) {
                             currentDirServer = ((DirInfo) odis.readObject()).getPath();
                             System.out.println(currentDirServer);
                             System.out.println("LIST OF SERVERS FILES");
                             filesIncurrentDirServer = (List<FileInfo>) odis.readObject();
                             System.out.println(filesIncurrentDirServer);
-                            System.out.println("FileInfo from server");
-
+                            System.out.println("List FileInfo from server accepted");
+                            updateUI();
                         }
 
                     }
@@ -192,8 +194,17 @@ public class Controller implements Initializable {
 //        updateView();
     }
 
-    private void updateView() {
-        throw new RuntimeException("NOT YET IMPL");
+    private void updateUI() {
+        clientTable.getItems().clear();
+        serverTable.getItems().clear();
+        Path currentDir = Paths.get("client", "client_storage");
+        serverTable.getItems().addAll(filesIncurrentDirServer);
+        try {
+            clientTable.getItems().addAll(Files.list(currentDir).map(FileInfo::new).collect(Collectors.toList()));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
     }
 
     public void showAlert(String msg) {
@@ -201,5 +212,13 @@ public class Controller implements Initializable {
         alert.showAndWait();
     }
 
+    public void updateUiByServerChange(){
+        try {
+            out.write(DataTypes.UI_UPDATE_BY_SERVER_CHANGE.getSignalByte());
+        } catch (IOException e) {
+            e.printStackTrace();
+            showAlert("Connection problem");
+        }
+    }
 
 }

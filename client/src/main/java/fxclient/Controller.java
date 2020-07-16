@@ -143,6 +143,17 @@ public class Controller implements Initializable {
                                 currentState = State.ACCEPTING_FILE;
 
                             }
+
+                            if(firstByte == DataTypes.FILE_DELETE_RESPONSE.getByte()){
+                                StringBuilder response = new StringBuilder();
+                                int read;
+                                while((read = in.readByte()) != -1){
+                                    response.append(read);
+                                }
+                                System.out.println("response on delete:  " + response);
+                                showAlert(response.toString(), "info");
+                                currentState = State.AWAIT;
+                            }
                         }
 
 
@@ -316,6 +327,16 @@ public class Controller implements Initializable {
 
             }
 
+        }
+        if(serverTable.isFocused()){
+            FileInfo fileToDelete = serverTable.getSelectionModel().getSelectedItem();
+
+            try {
+                out.write(DataTypes.FILE_DELETE_REQUEST.getByte());
+                out.write(fileToDelete.getFullFileName().getBytes());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
 
     }

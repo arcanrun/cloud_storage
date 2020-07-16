@@ -7,7 +7,6 @@ import io.netty.handler.codec.serialization.ObjectEncoder;
 import utils.DataTypes;
 import utils.DirInfo;
 import utils.FileInfo;
-import utils.FileWorker;
 
 
 import java.io.*;
@@ -30,7 +29,7 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
 
     private State currentState;
     private enum State {
-        FILE, FILE_NAME, FILE_SIZE, FILE_ACCEPTING, AWAIT,DOWNLOAD_REQUEST;
+        FILE, FILE_NAME, FILE_SIZE, FILE_ACCEPTING, AWAIT,DOWNLOAD_REQUEST, FILE_DELETE;
     }
 
 
@@ -77,6 +76,40 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
             if (firstByte == DataTypes.FILE_REQUEST.getByte()) {
                 logAndSwitchState(State.DOWNLOAD_REQUEST);
             }
+
+            if(firstByte == DataTypes.FILE_DELETE_REQUEST.getByte()){
+                logAndSwitchState(State.FILE_DELETE);
+            }
+        }
+
+        if(currentState == State.FILE_DELETE){
+            StringBuilder fileNameToDelete = new StringBuilder();
+            ByteBuf response = ctx.alloc().buffer();
+            ByteBuf signalByte = ctx.alloc().buffer();
+
+            signalByte.writeByte(DataTypes.FILE_DELETE_RESPONSE.getByte());
+            ctx.writeAndFlush(signalByte);
+
+            while (byteBuf.isReadable()) {
+                fileNameToDelete.append((char)byteBuf.readByte());
+            }
+            System.out.println("fileNameToDelete:  " + fileNameToDelete);
+            try {
+                boolean result = Files.deleteIfExists(serverCurrentDir.resolve(fileNameToDelete.toString()));
+                if (result) {
+                    response.writeBytes((fileNameToDelete  + " has been deleted").getBytes());
+                } else {
+                    response.writeBytes(("Something wrong while deleting: " + fileNameToDelete ).getBytes());
+                }
+                ctx.writeAndFlush(response);
+
+            } catch (IOException e) {
+                response.writeBytes(("Something wrong while deleting: " + fileNameToDelete ).getBytes());
+                ctx.writeAndFlush(response);
+
+            }
+            sendFilesList(ctx);
+            logAndSwitchState(State.AWAIT);
         }
 
         if(currentState == State.DOWNLOAD_REQUEST){
@@ -84,7 +117,7 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
             while (byteBuf.isReadable()) {
                 fileNameToDownload.append((char)byteBuf.readByte());
             }
-            System.out.println(fileNameToDownload);
+            System.out.println("fileNameToDownload:  " + fileNameToDownload);
             ByteBuf bufSignalByte = ctx.alloc().buffer();
             bufSignalByte.writeByte((byte) DataTypes.FILE_ACCEPT.getByte());
             ctx.writeAndFlush(bufSignalByte);

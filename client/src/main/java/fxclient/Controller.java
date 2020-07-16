@@ -94,7 +94,7 @@ public class Controller implements Initializable {
             clientTable.getItems().addAll(Files.list(currentDir).map(FileInfo::new).collect(Collectors.toList()));
         } catch (IOException e) {
             e.printStackTrace();
-            showAlert("Error while updating files list");
+            showAlert("Error while updating files list", "warning");
         }
     }
 
@@ -170,7 +170,7 @@ public class Controller implements Initializable {
                                     break;
                                 }
                             }
-                            Platform.runLater(()->{
+                            Platform.runLater(() -> {
                                 downloadBtn.setDisable(false);
                                 downloadBtn.setText("download");
                                 updateUIClientTable();
@@ -186,7 +186,7 @@ public class Controller implements Initializable {
                         out.close();
                     } catch (IOException ioException) {
                         ioException.printStackTrace();
-                        showAlert("Error while close connections");
+                        showAlert("Error while close connections", "warning");
                     }
 
                 }
@@ -197,7 +197,7 @@ public class Controller implements Initializable {
             t.start();
         } catch (IOException e) {
             e.printStackTrace();
-            showAlert("Error while connecting to server");
+            showAlert("Error while connecting to server", "warning");
 
         }
     }
@@ -222,7 +222,7 @@ public class Controller implements Initializable {
                         FileWorker.bytesToFile(buffer, fileToSend.getFileInputStream(), out, fileToSend.getSize());
                     } catch (IOException e) {
                         e.printStackTrace();
-                        showAlert("Error while uploading file to server");
+                        showAlert("Error while uploading file to server", "warning");
                     }
                     uploadBtn.setDisable(false);
                     Platform.runLater(new Runnable() {
@@ -258,7 +258,7 @@ public class Controller implements Initializable {
 
             } catch (IOException e) {
                 e.printStackTrace();
-                showAlert("Error while request to download");
+                showAlert("Error while request to download", "warning");
             }
 
         }
@@ -280,14 +280,42 @@ public class Controller implements Initializable {
             clientTable.getItems().clear();
             clientTable.getItems().addAll(Files.list(currentDir).map(FileInfo::new).collect(Collectors.toList()));
         } catch (IOException e) {
-            showAlert("Error while updating ui");
+            showAlert("Error while updating ui", "warning");
             e.printStackTrace();
         }
     }
 
-    public void showAlert(String msg) {
-        Alert alert = new Alert(Alert.AlertType.WARNING, msg, ButtonType.OK);
+    public void showAlert(String msg, String typeAlert) {
+        Alert alert;
+        if (typeAlert.equals("info")) {
+            alert = new Alert(Alert.AlertType.INFORMATION, msg, ButtonType.OK);
+        }
+        else {
+            alert = new Alert(Alert.AlertType.WARNING, msg, ButtonType.OK);
+        }
         alert.showAndWait();
+    }
+
+
+    public void deleteFileOnClient() {
+        if (clientTable.isFocused()) {
+            FileInfo fileToDelete = clientTable.getSelectionModel().getSelectedItem();
+            try {
+
+                boolean result = Files.deleteIfExists(fileToDelete.getPath());
+                if (result) {
+                    showAlert("File: " + fileToDelete.getFullFileName() + "has been deleted", "info");
+                } else {
+                    showAlert("Something wrong while deleting file: " + fileToDelete.getFullFileName(), "warning");
+                }
+                updateUIClientTable();
+            } catch (IOException e) {
+                e.printStackTrace();
+                showAlert(e.getMessage(), "warning");
+            }
+
+        }
+
     }
 
 

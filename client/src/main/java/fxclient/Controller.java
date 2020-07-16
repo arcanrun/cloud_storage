@@ -129,7 +129,6 @@ public class Controller implements Initializable {
             out = new DataOutputStream(socket.getOutputStream());
 
             odis = new ObjectDecoderInputStream(socket.getInputStream());
-
             Thread t = new Thread(() -> {
                 try {
                     while (true) {

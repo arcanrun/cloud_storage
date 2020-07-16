@@ -30,12 +30,14 @@ public class FileWorker {
     public static void bytesToFile(byte[] buffer, InputStream in, OutputStream out, long fileSize) throws IOException {
 
         int count = 0;
-        while(count != fileSize){
+
             if (fileSize < buffer.length) {
                 byte[] lessBuffer = new byte[(int) fileSize];
                 int read = in.read(lessBuffer);
                 count += read;
                 out.write(lessBuffer);
+                logging(count);
+                return;
             } else {
                 while (true) {
                     int read = in.read(buffer);
@@ -46,15 +48,17 @@ public class FileWorker {
                         read = in.read(leftBuffer);
                         count += read;
                         out.write(leftBuffer);
-                        break;
+                        logging(count);
+                        return;
                     }
                 }
             }
-        }
 
+    }
 
+    private static void logging(int readBytes){
         System.out.println();
-        System.out.println("TOTAL READ: " + count);
+        System.out.println("TOTAL READ: " + readBytes);
     }
 
 }

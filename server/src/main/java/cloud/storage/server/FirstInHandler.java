@@ -94,6 +94,7 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
             while ((readFromFile = bis.read()) != -1){
                ByteBuf buf = ctx.alloc().buffer();
                buf.writeByte(readFromFile);
+               System.out.print((char) readFromFile);
                ctx.writeAndFlush(buf);
                count +=1;
             }

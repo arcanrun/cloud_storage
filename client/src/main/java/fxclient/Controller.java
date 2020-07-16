@@ -1,7 +1,6 @@
 package fxclient;
 
 import io.netty.handler.codec.serialization.ObjectDecoderInputStream;
-import io.netty.handler.codec.serialization.ObjectEncoderOutputStream;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -21,16 +20,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.ResourceBundle;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class Controller implements Initializable {
-    private enum State{
-        ACCEPTING_FILE, ACCEPTING_FILES_LIST, AWAIT;
+    private enum State {
+        ACCEPTING_FILE, ACCEPTING_FILES_LIST, FILE_UPLOADING, AWAIT;
     }
+
+    private Path currentDir;
     private State currentState;
     private Socket socket;
     private DataInputStream in;
@@ -67,12 +66,13 @@ public class Controller implements Initializable {
         currentState = State.AWAIT;
         connect();
         initClientTable();
+
         initServerTable();
     }
 
     private void initClientTable() {
 
-        Path currentDir = Paths.get("client", "client_storage");
+        currentDir = Paths.get("client", "client_storage");
         pwd.setText(currentDir.toString());
 
         TableColumn<FileInfo, String> nameColumn = new TableColumn<>("Name");
@@ -133,35 +133,48 @@ public class Controller implements Initializable {
             Thread t = new Thread(() -> {
                 try {
                     while (true) {
-                        if(currentState == State.AWAIT){
+                        if (currentState == State.AWAIT) {
                             byte firstByte = in.readByte();
                             if (firstByte == DataTypes.UI_UPDATE_BY_SERVER_CHANGE.getByte()) {
                                 currentState = State.ACCEPTING_FILES_LIST;
 
                             }
-                            if(firstByte == DataTypes.FILE_ACCEPT.getByte()){
+                            if (firstByte == DataTypes.FILE_ACCEPT.getByte()) {
                                 currentState = State.ACCEPTING_FILE;
 
                             }
                         }
 
 
-                        if(currentState == State.ACCEPTING_FILES_LIST){
+                        if (currentState == State.ACCEPTING_FILES_LIST) {
                             currentDirServer = ((DirInfo) odis.readObject()).getPath();
                             System.out.println(currentDirServer);
                             System.out.println("LIST OF SERVERS FILES");
                             filesIncurrentDirServer = (List<FileInfo>) odis.readObject();
                             System.out.println(filesIncurrentDirServer);
                             System.out.println("List FileInfo from server accepted");
-                            updateUI();
+                            updateUIServerTable();
                             currentState = State.AWAIT;
                         }
-                        if(currentState == State.ACCEPTING_FILE){
-                            System.out.println("DOWNLOAD!" + currentDownloadingFile);
-                            Path fileFromServer = Paths.get("client", "client_storage", currentDownloadingFile.getFullFileName());
-                            FileOutputStream fos = new FileOutputStream(fileFromServer.toFile(), true);
-                            FileWorker.bytesToFile(buffer, in, fos, currentDownloadingFile.getSize());
-                            currentDownloadingFile = null;
+                        if (currentState == State.ACCEPTING_FILE) {
+                            System.out.println("DOWNLOAD! ->" + currentDownloadingFile);
+                            BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(currentDir.resolve(currentDownloadingFile.getFullFileName()).toFile()));
+                            int countAcceptingBytes = 0;
+                            while (true) {
+                                bos.write(in.read());
+                                countAcceptingBytes++;
+                                if (currentDownloadingFile.getSize() == countAcceptingBytes) {
+                                    System.out.println("File has been accepted : " + countAcceptingBytes);
+                                    bos.close();
+                                    currentState = State.AWAIT;
+                                    break;
+                                }
+                            }
+                            Platform.runLater(()->{
+                                downloadBtn.setDisable(false);
+                                downloadBtn.setText("download");
+                                updateUIClientTable();
+                            });
                             currentState = State.AWAIT;
                         }
 
@@ -197,10 +210,11 @@ public class Controller implements Initializable {
                 downloadBtn.setDisable(true);
                 uploadBtn.setText(">>>>>>>>");
                 new Thread(() -> {
-                        List<Byte> someByte = new ArrayList<>();
-                        byte[] b = new byte[10];
+                    List<Byte> someByte = new ArrayList<>();
+                    byte[] b = new byte[10];
 
                     try {
+                        currentState = State.FILE_UPLOADING;
                         out.write(DataTypes.FILE.getByte());
                         out.writeInt(fileToSend.getPath().getFileName().toString().getBytes().length);
                         out.write(fileToSend.getPath().getFileName().toString().getBytes());
@@ -216,6 +230,7 @@ public class Controller implements Initializable {
                         public void run() {
                             uploadBtn.setText("upload");
                             downloadBtn.setDisable(false);
+                            currentState = State.AWAIT;
                         }
                     });
                 }).start();
@@ -227,44 +242,47 @@ public class Controller implements Initializable {
     }
 
 
-    public void downloadFile(){
-        if(serverTable.isFocused()){
+    public void downloadFile() {
+        if (serverTable.isFocused()) {
             FileInfo fileToDownload = serverTable.getSelectionModel().getSelectedItem();
-            if(fileToDownload.getType().equals("DIR")){
+            if (fileToDownload.getType().equals("DIR")) {
                 return;
             }
             downloadBtn.setDisable(true);
             downloadBtn.setText("<<<<<<<<");
             try {
-                currentDownloadingFile= fileToDownload;
+                currentDownloadingFile = fileToDownload;
                 out.write(DataTypes.FILE_REQUEST.getByte());
                 out.write(fileToDownload.getFullFileName().getBytes());
+
 
             } catch (IOException e) {
                 e.printStackTrace();
                 showAlert("Error while request to download");
             }
-            downloadBtn.setDisable(false);
-            downloadBtn.setText("download");
+
         }
     }
 
 
-    private void updateUI() {
+    private void updateUIServerTable() {
 
-        Path currentDir = Paths.get("client", "client_storage");
+        serverPwd.setText(currentDirServer);
 
         serverTable.getItems().clear();
         serverTable.getItems().addAll(filesIncurrentDirServer);
 
-//        try {
-//            clientTable.getItems().clear();
-//            clientTable.getItems().addAll(Files.list(currentDir).map(FileInfo::new).collect(Collectors.toList()));
-//        } catch (IOException e) {
-//            showAlert("Error while updating ui");
-//            e.printStackTrace();
-//        }
+    }
 
+    private void updateUIClientTable() {
+        pwd.setText(currentDir.toString());
+        try {
+            clientTable.getItems().clear();
+            clientTable.getItems().addAll(Files.list(currentDir).map(FileInfo::new).collect(Collectors.toList()));
+        } catch (IOException e) {
+            showAlert("Error while updating ui");
+            e.printStackTrace();
+        }
     }
 
     public void showAlert(String msg) {
@@ -272,14 +290,5 @@ public class Controller implements Initializable {
         alert.showAndWait();
     }
 
-    public void updateUiByServerChange() {
-        try {
-            out.write(DataTypes.UI_UPDATE_BY_SERVER_CHANGE.getByte());
-
-        } catch (IOException e) {
-            e.printStackTrace();
-            showAlert("Connection problem");
-        }
-    }
 
 }

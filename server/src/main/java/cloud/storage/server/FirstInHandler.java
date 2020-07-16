@@ -4,22 +4,19 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.serialization.ObjectEncoder;
+import utils.DataTypes;
 import utils.DirInfo;
 import utils.FileInfo;
+import utils.FileWorker;
 
 
-import java.io.BufferedOutputStream;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
+import java.io.*;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class FirstInHandler extends ChannelInboundHandlerAdapter {
 
@@ -29,12 +26,14 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
     private Path serverCurrentDir;
     private long acceptingFileSize;
     private long countAcceptingBytes;
-
-    private enum State {
-        FILE, FILE_NAME, FILE_SIZE, FILE_ACCEPTING, AWAIT;
-    }
+    private int sizeOfNameUploadingFile;
 
     private State currentState;
+    private enum State {
+        FILE, FILE_NAME, FILE_SIZE, FILE_ACCEPTING, AWAIT,DOWNLOAD_REQUEST;
+    }
+
+
 
     public FirstInHandler() {
         currentState = State.AWAIT;
@@ -58,34 +57,79 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         System.out.println(currentState);
-
         ByteBuf byteBuf = ((ByteBuf) msg);
-//        byte firstByte = byteBuf.readByte();
+
+        if (currentState != State.AWAIT && countAcceptingBytes == 0L && acceptingFileSize == 0L) {
+            logAndSwitchState(State.AWAIT);
+        }
+
         if (currentState == State.AWAIT) {
+
             countAcceptingBytes = 0L;
-            if (byteBuf.readByte() == (byte) 15) {
+            acceptingFileSize = 0L;
+            byte firstByte = byteBuf.readByte();
+
+            if (firstByte == DataTypes.FILE.getByte()) {
                 logAndSwitchState(State.FILE);
             }
-//            if(firstByte == (byte) 25){
-//                sendFilesList(ctx);
-//            }
 
+            if (firstByte == DataTypes.FILE_REQUEST.getByte()) {
+                logAndSwitchState(State.DOWNLOAD_REQUEST);
+            }
         }
-        if (currentState == State.FILE) {
 
-                int sizeOfName = byteBuf.readInt();
-                System.out.println("length of file name: " + sizeOfName);
-                byte[] nameInBytes = new byte[sizeOfName];
+        if(currentState == State.DOWNLOAD_REQUEST){
+            StringBuilder fileNameToDownload = new StringBuilder();
+            while (byteBuf.isReadable()) {
+                fileNameToDownload.append((char)byteBuf.readByte());
+            }
+            System.out.println(fileNameToDownload);
+            ByteBuf bufSignalByte = ctx.alloc().buffer();
+            bufSignalByte.writeByte((byte) DataTypes.FILE_ACCEPT.getByte());
+            ctx.writeAndFlush(bufSignalByte);
+
+            BufferedInputStream bis = new BufferedInputStream(new FileInputStream(serverCurrentDir.resolve(fileNameToDownload.toString()).toFile()));
+            int readFromFile;
+            int count = 0;
+            while ((readFromFile = bis.read()) != -1){
+               ByteBuf buf = ctx.alloc().buffer();
+               buf.writeByte(readFromFile);
+               ctx.writeAndFlush(buf);
+               count +=1;
+            }
+            System.out.println("Total send: " + count);
+            logAndSwitchState(State.AWAIT);
+        }
+
+
+
+
+        //file uploading to the server
+        if (currentState == State.FILE) {
+            System.out.println("readableBytes: " + byteBuf.readableBytes());
+            if (byteBuf.readableBytes() >= 4) {
+                sizeOfNameUploadingFile = byteBuf.readInt();
+                System.out.println("size of file name: " + sizeOfNameUploadingFile);
+                logAndSwitchState(State.FILE_NAME);
+            }
+        }
+
+        if (currentState == State.FILE_NAME) {
+            if (byteBuf.readableBytes() >= sizeOfNameUploadingFile) {
+                byte[] nameInBytes = new byte[sizeOfNameUploadingFile];
                 byteBuf.readBytes(nameInBytes);
                 bos = new BufferedOutputStream(new FileOutputStream(serverCurrentDir.resolve(new String(nameInBytes)).toFile()));
                 logAndSwitchState(State.FILE_SIZE);
-
+            }
         }
+
         if (currentState == State.FILE_SIZE) {
-            acceptingFileSize = byteBuf.readLong();
-            logAndSwitchState(State.FILE_ACCEPTING);
-
+            if (byteBuf.readableBytes() >= 8) {
+                acceptingFileSize = byteBuf.readLong();
+                logAndSwitchState(State.FILE_ACCEPTING);
+            }
         }
+
         if (currentState == State.FILE_ACCEPTING) {
             System.out.println("READBLE BYTES: " + byteBuf.readableBytes());
             while (byteBuf.readableBytes() > 0) {
@@ -98,24 +142,23 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
                     sendFilesList(ctx);
                     break;
                 }
-
             }
         }
+
+        System.out.println("acceptingFileSize: " + acceptingFileSize);
+        System.out.println("countAcceptingBytes: " + countAcceptingBytes);
         System.out.println();
         System.out.println();
-        System.out.println(acceptingFileSize);
-        System.out.println(countAcceptingBytes);
 
         if (byteBuf.readableBytes() == 0) {
             byteBuf.release();
         }
 
-
     }
 
     private void sendFilesList(ChannelHandlerContext ctx) throws IOException {
         ByteBuf buf = ctx.alloc().buffer();
-        buf.writeByte((byte)25);
+        buf.writeByte(DataTypes.UI_UPDATE_BY_SERVER_CHANGE.getByte());
         ctx.writeAndFlush(buf);
 
         ctx.pipeline().addFirst(new ObjectEncoder());

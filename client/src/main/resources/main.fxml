@@ -51,7 +51,7 @@
             </HBox.margin>
         </Button>
         <Button maxWidth="Infinity" focusTraversable="false" prefHeight="126.0" prefWidth="150.0" text="delete"
-                 HBox.hgrow="ALWAYS" onAction="#deleteFileOnClient">
+                 HBox.hgrow="ALWAYS" onAction="#deleteFileOrDirOnClient">
             <HBox.margin>
                 <Insets bottom="5.0" left="5.0" right="5.0" top="5.0"/>
             </HBox.margin>

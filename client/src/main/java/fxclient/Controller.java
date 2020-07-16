@@ -297,21 +297,23 @@ public class Controller implements Initializable {
     }
 
 
-    public void deleteFileOnClient() {
+    public void deleteFileOrDirOnClient() {
         if (clientTable.isFocused()) {
             FileInfo fileToDelete = clientTable.getSelectionModel().getSelectedItem();
-            try {
+            String FileOrDir = fileToDelete.getType().equals("DIR")? "Directory" : "File";
 
+            try {
                 boolean result = Files.deleteIfExists(fileToDelete.getPath());
                 if (result) {
-                    showAlert("File: " + fileToDelete.getFullFileName() + "has been deleted", "info");
+                    showAlert(FileOrDir +": " + fileToDelete.getFullFileName() + "has been deleted", "info");
                 } else {
-                    showAlert("Something wrong while deleting file: " + fileToDelete.getFullFileName(), "warning");
+                    showAlert("Something wrong while deleting: " + FileOrDir + " " + fileToDelete.getFullFileName(), "warning");
                 }
                 updateUIClientTable();
             } catch (IOException e) {
                 e.printStackTrace();
-                showAlert(e.getMessage(), "warning");
+                showAlert(e.toString(), "warning");
+
             }
 
         }

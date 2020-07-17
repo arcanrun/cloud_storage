@@ -7,6 +7,7 @@ import io.netty.handler.codec.serialization.ObjectEncoder;
 import utils.DataTypes;
 import utils.DirInfo;
 import utils.FileInfo;
+import utils.ResultMessageOnDelete;
 
 
 import java.io.*;
@@ -84,11 +85,11 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
 
         if(currentState == State.FILE_DELETE){
             StringBuilder fileNameToDelete = new StringBuilder();
-            ByteBuf response = ctx.alloc().buffer();
-            ByteBuf signalByte = ctx.alloc().buffer();
+            ResultMessageOnDelete response = new ResultMessageOnDelete();
+            ByteBuf signalByteBuf = ctx.alloc().buffer();
 
-            signalByte.writeByte(DataTypes.FILE_DELETE_RESPONSE.getByte());
-            ctx.writeAndFlush(signalByte);
+            signalByteBuf.writeByte(DataTypes.FILE_DELETE_RESPONSE.getByte());
+            ctx.writeAndFlush(signalByteBuf);
 
             while (byteBuf.isReadable()) {
                 fileNameToDelete.append((char)byteBuf.readByte());
@@ -97,17 +98,24 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
             try {
                 boolean result = Files.deleteIfExists(serverCurrentDir.resolve(fileNameToDelete.toString()));
                 if (result) {
-                    response.writeBytes((fileNameToDelete  + " has been deleted").getBytes());
+                    response.setMessage(fileNameToDelete  + " has been deleted");
+                    response.setType("info");
                 } else {
-                    response.writeBytes(("Something wrong while deleting: " + fileNameToDelete ).getBytes());
+                    response.setMessage("Something wrong while deleting: " + fileNameToDelete );
+                    response.setType("warning");
+
                 }
-                ctx.writeAndFlush(response);
 
             } catch (IOException e) {
-                response.writeBytes(("Something wrong while deleting: " + fileNameToDelete ).getBytes());
-                ctx.writeAndFlush(response);
+                response.setMessage(e.toString());
+                response.setType("warning");
 
             }
+
+            ctx.pipeline().addFirst(new ObjectEncoder());
+            ctx.writeAndFlush(response);
+            ctx.pipeline().remove(ObjectEncoder.class);
+
             sendFilesList(ctx);
             logAndSwitchState(State.AWAIT);
         }
@@ -136,10 +144,6 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
             logAndSwitchState(State.AWAIT);
         }
 
-
-
-
-        //file uploading to the server
         if (currentState == State.FILE) {
             System.out.println("readableBytes: " + byteBuf.readableBytes());
             if (byteBuf.readableBytes() >= 4) {
@@ -192,9 +196,9 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
     }
 
     private void sendFilesList(ChannelHandlerContext ctx) throws IOException {
-        ByteBuf buf = ctx.alloc().buffer();
-        buf.writeByte(DataTypes.UI_UPDATE_BY_SERVER_CHANGE.getByte());
-        ctx.writeAndFlush(buf);
+        ByteBuf signalByte = ctx.alloc().buffer();
+        signalByte.writeByte(DataTypes.UI_UPDATE_BY_SERVER_CHANGE.getByte());
+        ctx.writeAndFlush(signalByte);
 
         ctx.pipeline().addFirst(new ObjectEncoder());
 

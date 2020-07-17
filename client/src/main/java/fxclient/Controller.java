@@ -7,10 +7,7 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
-import utils.DataTypes;
-import utils.DirInfo;
-import utils.FileInfo;
-import utils.FileWorker;
+import utils.*;
 
 
 import java.io.*;
@@ -26,7 +23,7 @@ import java.util.stream.Collectors;
 
 public class Controller implements Initializable {
     private enum State {
-        ACCEPTING_FILE, ACCEPTING_FILES_LIST, FILE_UPLOADING, AWAIT;
+        ACCEPTING_FILE, ACCEPTING_FILES_LIST, FILE_UPLOADING, AWAIT_RESPONSE_ON_DELETE_FILE, AWAIT;
     }
 
     private Path currentDir;
@@ -133,29 +130,24 @@ public class Controller implements Initializable {
                 try {
                     while (true) {
                         if (currentState == State.AWAIT) {
+                            System.out.println("CURRENT STATE: " + currentState);
                             byte firstByte = in.readByte();
+                            System.out.println("SIGNAL BYTE: " + firstByte);
+
                             if (firstByte == DataTypes.UI_UPDATE_BY_SERVER_CHANGE.getByte()) {
-                                currentState = State.ACCEPTING_FILES_LIST;
+                                logAndSwitchState(State.ACCEPTING_FILES_LIST);
 
                             }
                             if (firstByte == DataTypes.FILE_ACCEPT.getByte()) {
-                                currentState = State.ACCEPTING_FILE;
+                                logAndSwitchState( State.ACCEPTING_FILE);
+
+                            }
+                            if (firstByte == DataTypes.FILE_DELETE_RESPONSE.getByte()) {
+                                logAndSwitchState( State.AWAIT_RESPONSE_ON_DELETE_FILE);
 
                             }
 
-                            if(firstByte == DataTypes.FILE_DELETE_RESPONSE.getByte()){
-                                StringBuilder response = new StringBuilder();
-                                int read;
-                                while((read = in.readByte()) != -1){
-                                    response.append(read);
-                                }
-                                System.out.println("response on delete:  " + response);
-                                showAlert(response.toString(), "info");
-                                currentState = State.AWAIT;
-                            }
                         }
-
-
                         if (currentState == State.ACCEPTING_FILES_LIST) {
                             currentDirServer = ((DirInfo) odis.readObject()).getPath();
                             System.out.println(currentDirServer);
@@ -164,7 +156,8 @@ public class Controller implements Initializable {
                             System.out.println(filesIncurrentDirServer);
                             System.out.println("List FileInfo from server accepted");
                             updateUIServerTable();
-                            currentState = State.AWAIT;
+                            logAndSwitchState(State.AWAIT);
+
                         }
                         if (currentState == State.ACCEPTING_FILE) {
                             System.out.println("DOWNLOAD! ->" + currentDownloadingFile);
@@ -185,7 +178,16 @@ public class Controller implements Initializable {
                                 downloadBtn.setText("download");
                                 updateUIClientTable();
                             });
-                            currentState = State.AWAIT;
+                            logAndSwitchState(State.AWAIT);
+
+                        }
+                        if (currentState == State.AWAIT_RESPONSE_ON_DELETE_FILE) {
+                            ResultMessageOnDelete response = (ResultMessageOnDelete) odis.readObject();
+                            Platform.runLater(()->{
+                                showAlert(response.getMessage(), response.getType());
+                            });
+                            logAndSwitchState(State.AWAIT);
+
                         }
 
                     }
@@ -251,7 +253,6 @@ public class Controller implements Initializable {
 
     }
 
-
     public void downloadFile() {
         if (serverTable.isFocused()) {
             FileInfo fileToDownload = serverTable.getSelectionModel().getSelectedItem();
@@ -273,7 +274,6 @@ public class Controller implements Initializable {
 
         }
     }
-
 
     private void updateUIServerTable() {
 
@@ -299,23 +299,21 @@ public class Controller implements Initializable {
         Alert alert;
         if (typeAlert.equals("info")) {
             alert = new Alert(Alert.AlertType.INFORMATION, msg, ButtonType.OK);
-        }
-        else {
+        } else {
             alert = new Alert(Alert.AlertType.WARNING, msg, ButtonType.OK);
         }
         alert.showAndWait();
     }
 
-
-    public void deleteFileOrDirOnClient() {
+    public void deleteFileOrDir() {
         if (clientTable.isFocused()) {
             FileInfo fileToDelete = clientTable.getSelectionModel().getSelectedItem();
-            String FileOrDir = fileToDelete.getType().equals("DIR")? "Directory" : "File";
+            String FileOrDir = fileToDelete.getType().equals("DIR") ? "Directory" : "File";
 
             try {
                 boolean result = Files.deleteIfExists(fileToDelete.getPath());
                 if (result) {
-                    showAlert(FileOrDir +": " + fileToDelete.getFullFileName() + "has been deleted", "info");
+                    showAlert(FileOrDir + ": " + fileToDelete.getFullFileName() + "has been deleted", "info");
                 } else {
                     showAlert("Something wrong while deleting: " + FileOrDir + " " + fileToDelete.getFullFileName(), "warning");
                 }
@@ -327,9 +325,8 @@ public class Controller implements Initializable {
             }
 
         }
-        if(serverTable.isFocused()){
+        if (serverTable.isFocused()) {
             FileInfo fileToDelete = serverTable.getSelectionModel().getSelectedItem();
-
             try {
                 out.write(DataTypes.FILE_DELETE_REQUEST.getByte());
                 out.write(fileToDelete.getFullFileName().getBytes());
@@ -340,5 +337,10 @@ public class Controller implements Initializable {
 
     }
 
+    private void logAndSwitchState(State newState) {
+
+        System.out.println("STATE SWITCHED FROM [" + currentState + "] TO [" + newState + "]");
+        currentState = newState;
+    }
 
 }

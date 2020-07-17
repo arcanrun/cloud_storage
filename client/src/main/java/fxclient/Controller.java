@@ -10,6 +10,7 @@ import javafx.scene.control.*;
 import utils.*;
 
 
+import javax.xml.crypto.Data;
 import java.io.*;
 import java.net.Socket;
 import java.net.URL;
@@ -23,9 +24,9 @@ import java.util.stream.Collectors;
 
 public class Controller implements Initializable {
     private enum State {
-        ACCEPTING_FILE, ACCEPTING_FILES_LIST, FILE_UPLOADING, AWAIT_RESPONSE_ON_DELETE_FILE, AWAIT;
+        AWAIT_RESPONSE_ON_READY_TO_UPLOAD,ACCEPTING_FILE, ACCEPTING_FILES_LIST, FILE_UPLOADING, AWAIT_RESPONSE_ON_DELETE_FILE, AWAIT;
     }
-
+    private FileInfo fileToSend;
     private Path currentDir;
     private State currentState;
     private Socket socket;
@@ -146,8 +147,29 @@ public class Controller implements Initializable {
                                 logAndSwitchState( State.AWAIT_RESPONSE_ON_DELETE_FILE);
 
                             }
-
+                            if(firstByte == DataTypes.FILE_READY_TO_ACCEPT.getByte()){
+                                logAndSwitchState(State.FILE_UPLOADING);
+                            }
                         }
+
+                        if(currentState == State.FILE_UPLOADING){
+                            try {
+                                out.writeInt(fileToSend.getPath().getFileName().toString().getBytes().length);
+                                out.write(fileToSend.getPath().getFileName().toString().getBytes());
+                                out.writeLong(fileToSend.getSize());
+                                FileWorker.bytesToFile(buffer, fileToSend.getFileInputStream(), out, fileToSend.getSize());
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                                showAlert("Error while uploading file to server", "warning");
+                            }
+                            uploadBtn.setDisable(false);
+                            Platform.runLater(() -> {
+                                uploadBtn.setText("upload");
+                                downloadBtn.setDisable(false);
+                                logAndSwitchState(State.AWAIT);
+                            });
+                        }
+
                         if (currentState == State.ACCEPTING_FILES_LIST) {
                             currentDirServer = ((DirInfo) odis.readObject()).getPath();
                             System.out.println(currentDirServer);
@@ -160,7 +182,7 @@ public class Controller implements Initializable {
 
                         }
                         if (currentState == State.ACCEPTING_FILE) {
-                            System.out.println("DOWNLOAD! ->" + currentDownloadingFile);
+                            System.out.println("Accepting file-->" + currentDownloadingFile);
                             BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(currentDir.resolve(currentDownloadingFile.getFullFileName()).toFile()));
                             int countAcceptingBytes = 0;
                             while (true) {
@@ -169,7 +191,6 @@ public class Controller implements Initializable {
                                 if (currentDownloadingFile.getSize() == countAcceptingBytes) {
                                     System.out.println("File has been accepted : " + countAcceptingBytes);
                                     bos.close();
-                                    currentState = State.AWAIT;
                                     break;
                                 }
                             }
@@ -216,37 +237,18 @@ public class Controller implements Initializable {
 
     public void uploadFileToServer() {
         if (clientTable.isFocused()) {
-            FileInfo fileToSend = clientTable.getSelectionModel().getSelectedItem();
+            fileToSend = clientTable.getSelectionModel().getSelectedItem();
             if (!fileToSend.getType().equals("DIR")) {
+
                 uploadBtn.setDisable(true);
                 downloadBtn.setDisable(true);
                 uploadBtn.setText(">>>>>>>>");
-                new Thread(() -> {
-                    List<Byte> someByte = new ArrayList<>();
-                    byte[] b = new byte[10];
 
-                    try {
-                        currentState = State.FILE_UPLOADING;
-                        out.write(DataTypes.FILE.getByte());
-                        out.writeInt(fileToSend.getPath().getFileName().toString().getBytes().length);
-                        out.write(fileToSend.getPath().getFileName().toString().getBytes());
-                        out.writeLong(fileToSend.getSize());
-                        FileWorker.bytesToFile(buffer, fileToSend.getFileInputStream(), out, fileToSend.getSize());
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                        showAlert("Error while uploading file to server", "warning");
-                    }
-                    uploadBtn.setDisable(false);
-                    Platform.runLater(new Runnable() {
-                        @Override
-                        public void run() {
-                            uploadBtn.setText("upload");
-                            downloadBtn.setDisable(false);
-                            currentState = State.AWAIT;
-                        }
-                    });
-                }).start();
-
+                try {
+                    out.write(DataTypes.FILE.getByte());
+                } catch (IOException e) {
+                    showAlert("Something wrong in response to file uploading", "warining");
+                }
 
             }
         }

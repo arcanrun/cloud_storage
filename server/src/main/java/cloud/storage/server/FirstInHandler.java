@@ -29,10 +29,10 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
     private int sizeOfNameUploadingFile;
 
     private State currentState;
-    private enum State {
-        FILE, FILE_NAME, FILE_SIZE, FILE_ACCEPTING, AWAIT,DOWNLOAD_REQUEST, FILE_DELETE;
-    }
 
+    private enum State {
+        FILE, FILE_NAME, FILE_SIZE, FILE_ACCEPTING, AWAIT, DOWNLOAD_REQUEST, FILE_DELETE;
+    }
 
 
     public FirstInHandler() {
@@ -59,10 +59,10 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
         System.out.println(currentState);
         ByteBuf byteBuf = ((ByteBuf) msg);
 
-        //todo fix this patch
-        if (currentState != State.AWAIT && countAcceptingBytes == 0L && acceptingFileSize == 0L) {
-            logAndSwitchState(State.AWAIT);
-        }
+//        //todo fix this patch
+//        if (currentState != State.AWAIT && countAcceptingBytes == 0L && acceptingFileSize == 0L) {
+//            logAndSwitchState(State.AWAIT);
+//        }
 
         if (currentState == State.AWAIT) {
 
@@ -71,6 +71,10 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
             byte firstByte = byteBuf.readByte();
 
             if (firstByte == DataTypes.FILE.getByte()) {
+                ByteBuf signalByteBuf = ctx.alloc().buffer();
+                signalByteBuf.writeByte(DataTypes.FILE_READY_TO_ACCEPT.getByte());
+                ctx.writeAndFlush(signalByteBuf);
+
                 logAndSwitchState(State.FILE);
             }
 
@@ -78,12 +82,12 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
                 logAndSwitchState(State.DOWNLOAD_REQUEST);
             }
 
-            if(firstByte == DataTypes.FILE_DELETE_REQUEST.getByte()){
+            if (firstByte == DataTypes.FILE_DELETE_REQUEST.getByte()) {
                 logAndSwitchState(State.FILE_DELETE);
             }
         }
 
-        if(currentState == State.FILE_DELETE){
+        if (currentState == State.FILE_DELETE) {
             StringBuilder fileNameToDelete = new StringBuilder();
             ResultMessageOnDelete response = new ResultMessageOnDelete();
             ByteBuf signalByteBuf = ctx.alloc().buffer();
@@ -92,16 +96,16 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
             ctx.writeAndFlush(signalByteBuf);
 
             while (byteBuf.isReadable()) {
-                fileNameToDelete.append((char)byteBuf.readByte());
+                fileNameToDelete.append((char) byteBuf.readByte());
             }
             System.out.println("fileNameToDelete:  " + fileNameToDelete);
             try {
                 boolean result = Files.deleteIfExists(serverCurrentDir.resolve(fileNameToDelete.toString()));
                 if (result) {
-                    response.setMessage(fileNameToDelete  + " has been deleted");
+                    response.setMessage(fileNameToDelete + " has been deleted");
                     response.setType("info");
                 } else {
-                    response.setMessage("Something wrong while deleting: " + fileNameToDelete );
+                    response.setMessage("Something wrong while deleting: " + fileNameToDelete);
                     response.setType("warning");
 
                 }
@@ -120,10 +124,10 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
             logAndSwitchState(State.AWAIT);
         }
 
-        if(currentState == State.DOWNLOAD_REQUEST){
+        if (currentState == State.DOWNLOAD_REQUEST) {
             StringBuilder fileNameToDownload = new StringBuilder();
             while (byteBuf.isReadable()) {
-                fileNameToDownload.append((char)byteBuf.readByte());
+                fileNameToDownload.append((char) byteBuf.readByte());
             }
             System.out.println("fileNameToDownload:  " + fileNameToDownload);
             ByteBuf bufSignalByte = ctx.alloc().buffer();
@@ -133,12 +137,12 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
             BufferedInputStream bis = new BufferedInputStream(new FileInputStream(serverCurrentDir.resolve(fileNameToDownload.toString()).toFile()));
             int readFromFile;
             int count = 0;
-            while ((readFromFile = bis.read()) != -1){
-               ByteBuf buf = ctx.alloc().buffer();
-               buf.writeByte(readFromFile);
+            while ((readFromFile = bis.read()) != -1) {
+                ByteBuf buf = ctx.alloc().buffer();
+                buf.writeByte(readFromFile);
 
-               ctx.writeAndFlush(buf);
-               count +=1;
+                ctx.writeAndFlush(buf);
+                count += 1;
             }
             System.out.println("Total send: " + count);
             logAndSwitchState(State.AWAIT);

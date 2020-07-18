@@ -28,6 +28,7 @@ public class FileInfo implements Serializable {
             this.size = path.toFile().length();
         }
         if (path.toFile().isDirectory()) {
+            this.path = path;
             this.name = path.getFileName().toString();
             this.type = "DIR";
             this.size = path.toFile().length();
@@ -50,6 +51,10 @@ public class FileInfo implements Serializable {
 
     public String getType() {
         return type;
+    }
+
+    public String getFullFileName() {
+        return name + "." + type;
     }
 
     public Long getSize() {

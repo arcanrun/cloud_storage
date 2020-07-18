@@ -16,8 +16,7 @@
           AnchorPane.bottomAnchor="0.0" AnchorPane.topAnchor="30.0">
         <VBox prefHeight="328.0" prefWidth="600.0" HBox.hgrow="ALWAYS" maxWidth="Infinity">
             <HBox maxWidth="Infinity" prefHeight="0.0" prefWidth="600.0">
-
-                <!--                            <Button mnemonicParsing="false" text="^"/>-->
+             <Button fx:id="upBtnClient" mnemonicParsing="false" text="^" onAction="#goTo"/>
                 <TextField fx:id="pwd" editable="false" maxWidth="Infinity" prefHeight="27.0"
                            prefWidth="570.0" HBox.hgrow="ALWAYS"/>
 

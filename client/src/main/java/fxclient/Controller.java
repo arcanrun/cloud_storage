@@ -4,9 +4,12 @@ import io.netty.handler.codec.serialization.ObjectDecoderInputStream;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.event.ActionEvent;
+import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
+import javafx.scene.input.MouseEvent;
 import utils.*;
 
 
@@ -23,9 +26,11 @@ import java.util.ResourceBundle;
 import java.util.stream.Collectors;
 
 public class Controller implements Initializable {
+
     private enum State {
-        AWAIT_RESPONSE_ON_READY_TO_UPLOAD,ACCEPTING_FILE, ACCEPTING_FILES_LIST, FILE_UPLOADING, AWAIT_RESPONSE_ON_DELETE_FILE, AWAIT;
+        AWAIT_RESPONSE_ON_READY_TO_UPLOAD, ACCEPTING_FILE, ACCEPTING_FILES_LIST, FILE_UPLOADING, AWAIT_RESPONSE_ON_DELETE_FILE, AWAIT;
     }
+
     private FileInfo fileToSend;
     private Path currentDir;
     private State currentState;
@@ -59,6 +64,9 @@ public class Controller implements Initializable {
     @FXML
     private Button downloadBtn;
 
+    @FXML
+    private Button upBtnClient;
+
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         currentState = State.AWAIT;
@@ -70,7 +78,7 @@ public class Controller implements Initializable {
 
     private void initClientTable() {
 
-        currentDir = Paths.get("client", "client_storage");
+        currentDir = Paths.get("client", "client_storage").toAbsolutePath();
         pwd.setText(currentDir.toString());
 
         TableColumn<FileInfo, String> nameColumn = new TableColumn<>("Name");
@@ -94,6 +102,16 @@ public class Controller implements Initializable {
             e.printStackTrace();
             showAlert("Error while updating files list", "warning");
         }
+
+        clientTable.setOnMouseClicked(event -> {
+            if (event.getClickCount() == 2) {
+                FileInfo clickedItem = clientTable.getSelectionModel().getSelectedItem();
+                if (clickedItem.getType().equals("DIR")) {
+                    currentDir = currentDir.resolve(clickedItem.getName());
+                    updateUIClientTable();
+                }
+            }
+        });
     }
 
     public void initServerTable() {
@@ -140,19 +158,19 @@ public class Controller implements Initializable {
 
                             }
                             if (firstByte == DataTypes.FILE_ACCEPT.getByte()) {
-                                logAndSwitchState( State.ACCEPTING_FILE);
+                                logAndSwitchState(State.ACCEPTING_FILE);
 
                             }
                             if (firstByte == DataTypes.FILE_DELETE_RESPONSE.getByte()) {
-                                logAndSwitchState( State.AWAIT_RESPONSE_ON_DELETE_FILE);
+                                logAndSwitchState(State.AWAIT_RESPONSE_ON_DELETE_FILE);
 
                             }
-                            if(firstByte == DataTypes.FILE_READY_TO_ACCEPT.getByte()){
+                            if (firstByte == DataTypes.FILE_READY_TO_ACCEPT.getByte()) {
                                 logAndSwitchState(State.FILE_UPLOADING);
                             }
                         }
 
-                        if(currentState == State.FILE_UPLOADING){
+                        if (currentState == State.FILE_UPLOADING) {
                             try {
                                 out.writeInt(fileToSend.getPath().getFileName().toString().getBytes().length);
                                 out.write(fileToSend.getPath().getFileName().toString().getBytes());
@@ -204,7 +222,7 @@ public class Controller implements Initializable {
                         }
                         if (currentState == State.AWAIT_RESPONSE_ON_DELETE_FILE) {
                             ResultMessageOnDelete response = (ResultMessageOnDelete) odis.readObject();
-                            Platform.runLater(()->{
+                            Platform.runLater(() -> {
                                 showAlert(response.getMessage(), response.getType());
                             });
                             logAndSwitchState(State.AWAIT);
@@ -344,5 +362,18 @@ public class Controller implements Initializable {
         System.out.println("STATE SWITCHED FROM [" + currentState + "] TO [" + newState + "]");
         currentState = newState;
     }
+
+    public void goTo(ActionEvent e) {
+        Object src = e.getSource();
+        if (src == upBtnClient) {
+            Path parent = currentDir.getParent();
+            if (parent != null) {
+                currentDir = currentDir.getParent();
+                updateUIClientTable();
+            }
+        }
+
+    }
+
 
 }

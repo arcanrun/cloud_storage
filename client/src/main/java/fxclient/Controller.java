@@ -10,6 +10,8 @@ import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.layout.AnchorPane;
+import javafx.scene.layout.VBox;
 import utils.*;
 
 
@@ -33,6 +35,7 @@ public class Controller implements Initializable {
 
     private FileInfo fileToSend;
     private Path currentDir;
+    private Path homeDir;
     private State currentState;
     private Socket socket;
     private DataInputStream in;
@@ -67,18 +70,55 @@ public class Controller implements Initializable {
     @FXML
     private Button upBtnClient;
 
+    @FXML
+    private Button homeBtn;
+
+    @FXML
+    private Button loginBtn;
+
+    @FXML
+    private VBox loginPanel;
+
+    @FXML
+    private AnchorPane mainPanel;
+
+    @FXML
+    private TextField loginField;
+
+    @FXML
+    private PasswordField passwordField;
+
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         currentState = State.AWAIT;
         connect();
-        initClientTable();
 
+        initClientTable();
         initServerTable();
     }
 
-    private void initClientTable() {
+    public void login() {
+        //tom 123
+        //jhon 321
+        String login = loginField.getText().trim();
+        String password = passwordField.getText().trim();
+        if (login.isEmpty() || password.isEmpty()) {
+            showAlert("Login and password cant be empty values!", "warning");
+            return;
+        }
+        try {
+            int passwordHash = password.hashCode();
+            out.write(DataTypes.AUTH_USER_REQUEST.getByte());
+            out.write((login + "~" + passwordHash).getBytes());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
-        currentDir = Paths.get("client", "client_storage").toAbsolutePath();
+    }
+
+    private void initClientTable() {
+        homeDir = Paths.get("client", "client_storage").toAbsolutePath();
+        currentDir = homeDir;
         pwd.setText(currentDir.toString());
 
         TableColumn<FileInfo, String> nameColumn = new TableColumn<>("Name");
@@ -143,9 +183,11 @@ public class Controller implements Initializable {
 
             in = new DataInputStream(socket.getInputStream());
             out = new DataOutputStream(socket.getOutputStream());
-
             odis = new ObjectDecoderInputStream(socket.getInputStream());
+
+
             Thread t = new Thread(() -> {
+
                 try {
                     while (true) {
                         if (currentState == State.AWAIT) {
@@ -168,6 +210,13 @@ public class Controller implements Initializable {
                             if (firstByte == DataTypes.FILE_READY_TO_ACCEPT.getByte()) {
                                 logAndSwitchState(State.FILE_UPLOADING);
                             }
+                            if (firstByte == DataTypes.AUTH_OK.getByte()) {
+                                Platform.runLater(() -> {
+                                    loginPanel.setVisible(false);
+                                    mainPanel.setVisible(true);
+                                });
+
+                            }
                         }
 
                         if (currentState == State.FILE_UPLOADING) {
@@ -178,7 +227,10 @@ public class Controller implements Initializable {
                                 FileWorker.bytesToFile(buffer, fileToSend.getFileInputStream(), out, fileToSend.getSize());
                             } catch (IOException e) {
                                 e.printStackTrace();
-                                showAlert("Error while uploading file to server", "warning");
+                                Platform.runLater(() -> {
+
+                                    showAlert("Error while uploading file to server", "warning");
+                                });
                             }
                             uploadBtn.setDisable(false);
                             Platform.runLater(() -> {
@@ -371,6 +423,10 @@ public class Controller implements Initializable {
                 currentDir = currentDir.getParent();
                 updateUIClientTable();
             }
+        }
+        if (src == homeBtn) {
+            currentDir = homeDir;
+            updateUIClientTable();
         }
 
     }

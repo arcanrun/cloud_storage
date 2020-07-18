@@ -1,5 +1,7 @@
 package cloud.storage.server;
 
+import cloud.storage.server.net.utils.AuthService;
+import cloud.storage.server.net.utils.User;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -27,15 +29,19 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
     private long acceptingFileSize;
     private long countAcceptingBytes;
     private int sizeOfNameUploadingFile;
+    private AuthService authService;
+    private User user;
 
     private State currentState;
 
     private enum State {
-        FILE, FILE_NAME, FILE_SIZE, FILE_ACCEPTING, AWAIT, DOWNLOAD_REQUEST, FILE_DELETE;
+        FILE, FILE_NAME, FILE_SIZE, FILE_ACCEPTING, AWAIT, DOWNLOAD_REQUEST, FILE_DELETE, USER_AUTH;
     }
 
 
     public FirstInHandler() {
+        authService = new AuthService();
+        authService.connect();
         currentState = State.AWAIT;
         serverCurrentDir = Paths.get("server", "server_storage");
     }
@@ -43,14 +49,14 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        System.out.println("User has been connected!");
-        sendFilesList(ctx);
+        System.out.println("Connection established!");
 
     }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        System.out.println("User has been disconnected");
+        System.out.println(user+" has been disconnected");
+        ctx.close();
 
     }
 
@@ -59,10 +65,6 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
         System.out.println(currentState);
         ByteBuf byteBuf = ((ByteBuf) msg);
 
-//        //todo fix this patch
-//        if (currentState != State.AWAIT && countAcceptingBytes == 0L && acceptingFileSize == 0L) {
-//            logAndSwitchState(State.AWAIT);
-//        }
 
         if (currentState == State.AWAIT) {
 
@@ -85,6 +87,31 @@ public class FirstInHandler extends ChannelInboundHandlerAdapter {
             if (firstByte == DataTypes.FILE_DELETE_REQUEST.getByte()) {
                 logAndSwitchState(State.FILE_DELETE);
             }
+            if (firstByte == DataTypes.AUTH_USER_REQUEST.getByte()){
+                logAndSwitchState(State.USER_AUTH);
+            }
+        }
+
+        if(currentState == State.USER_AUTH){
+            StringBuilder loginAndPass = new StringBuilder();
+            while (byteBuf.isReadable()){
+                loginAndPass.append((char) byteBuf.readByte());
+            }
+            System.out.println(loginAndPass);   String login = loginAndPass.toString().split("~")[0];
+            int password = Integer.parseInt(loginAndPass.toString().split("~")[1]);
+            user = authService.loginUserByLoginAndPass(login, password);
+
+            if(user == null){
+                System.out.println("ERROR AUTH");
+            }else {
+                serverCurrentDir = serverCurrentDir.resolve(user.getLogin());
+                ByteBuf signalByteBuf =ctx.alloc().buffer();
+                signalByteBuf.writeByte(DataTypes.AUTH_OK.getByte());
+                ctx.writeAndFlush(signalByteBuf);
+                sendFilesList(ctx);
+                logAndSwitchState(State.AWAIT);
+            }
+
         }
 
         if (currentState == State.FILE_DELETE) {

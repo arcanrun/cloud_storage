@@ -52,6 +52,10 @@ public class FileInfo implements Serializable {
         return type;
     }
 
+    public String getFullFileName() {
+        return name + "." + type;
+    }
+
     public Long getSize() {
         return size;
     }

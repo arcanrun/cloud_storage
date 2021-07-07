@@ -1,11 +1,13 @@
 package fxclient;
 
 import io.netty.handler.codec.serialization.ObjectDecoderInputStream;
+import javafx.application.Platform;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
+import utils.DataTypes;
 import utils.DirInfo;
 import utils.FileInfo;
 import utils.FileWorker;
@@ -17,13 +19,18 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.ResourceBundle;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class Controller implements Initializable {
+    private enum State {
+        ACCEPTING_FILE, ACCEPTING_FILES_LIST, FILE_UPLOADING, AWAIT;
+    }
+
+    private Path currentDir;
+    private State currentState;
     private Socket socket;
     private DataInputStream in;
     private DataOutputStream out;
@@ -33,19 +40,8 @@ public class Controller implements Initializable {
     private static final int PORT = 8189;
     private String currentDirServer;
     private List<FileInfo> filesIncurrentDirServer;
+    private FileInfo currentDownloadingFile;
 
-    private enum DataTypes {
-        FILE((byte) 15), SERVER_ERROR((byte) 29), UI_UPDATE_BY_SERVER_CHANGE((byte)25);
-        byte signalByte;
-
-        DataTypes(byte signalByte) {
-            this.signalByte = signalByte;
-        }
-
-        byte getSignalByte() {
-            return signalByte;
-        }
-    }
 
     @FXML
     private TextField pwd;
@@ -62,22 +58,21 @@ public class Controller implements Initializable {
     @FXML
     private Button uploadBtn;
 
+    @FXML
+    private Button downloadBtn;
+
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-
+        currentState = State.AWAIT;
         connect();
-
-
         initClientTable();
-//        while (currentDirServer == null || filesIncurrentDirServer == null) {
-//            System.out.println("Loading...");
-//        }
-        initServerTable();
 
+        initServerTable();
     }
 
     private void initClientTable() {
-        Path currentDir = Paths.get("client", "client_storage");
+
+        currentDir = Paths.get("client", "client_storage");
         pwd.setText(currentDir.toString());
 
         TableColumn<FileInfo, String> nameColumn = new TableColumn<>("Name");
@@ -93,12 +88,13 @@ public class Controller implements Initializable {
 
 
         clientTable.getColumns().addAll(nameColumn, typeColumn, sizeColumn);
+        clientTable.getItems().clear();
         try {
 
             clientTable.getItems().addAll(Files.list(currentDir).map(FileInfo::new).collect(Collectors.toList()));
         } catch (IOException e) {
             e.printStackTrace();
-            showAlert("Error while updating files list");
+            showAlert("Error while updating files list", "warning");
         }
     }
 
@@ -116,9 +112,9 @@ public class Controller implements Initializable {
         TableColumn<FileInfo, Long> sizeColumn = new TableColumn<>("Size");
         sizeColumn.setCellValueFactory(param -> new SimpleObjectProperty(param.getValue().getSize()));
 
-
+        serverTable.getItems().clear();
         serverTable.getColumns().addAll(nameColumn, typeColumn, sizeColumn);
-        if(filesIncurrentDirServer != null){
+        if (filesIncurrentDirServer != null) {
             serverTable.getItems().addAll(filesIncurrentDirServer);
         }
 
@@ -128,21 +124,69 @@ public class Controller implements Initializable {
         try {
             buffer = new byte[1024];
             socket = new Socket(ADDR, PORT);
+
             in = new DataInputStream(socket.getInputStream());
             out = new DataOutputStream(socket.getOutputStream());
+
             odis = new ObjectDecoderInputStream(socket.getInputStream());
+
             Thread t = new Thread(() -> {
                 try {
                     while (true) {
-                        byte firstByte = in.readByte();
-                        if (firstByte == DataTypes.UI_UPDATE_BY_SERVER_CHANGE.getSignalByte()) {
+                        if (currentState == State.AWAIT) {
+                            byte firstByte = in.readByte();
+                            if (firstByte == DataTypes.UI_UPDATE_BY_SERVER_CHANGE.getByte()) {
+                                currentState = State.ACCEPTING_FILES_LIST;
+
+                            }
+                            if (firstByte == DataTypes.FILE_ACCEPT.getByte()) {
+                                currentState = State.ACCEPTING_FILE;
+
+                            }
+
+                            if(firstByte == DataTypes.FILE_DELETE_RESPONSE.getByte()){
+                                StringBuilder response = new StringBuilder();
+                                int read;
+                                while((read = in.readByte()) != -1){
+                                    response.append(read);
+                                }
+                                System.out.println("response on delete:  " + response);
+                                showAlert(response.toString(), "info");
+                                currentState = State.AWAIT;
+                            }
+                        }
+
+
+                        if (currentState == State.ACCEPTING_FILES_LIST) {
                             currentDirServer = ((DirInfo) odis.readObject()).getPath();
                             System.out.println(currentDirServer);
                             System.out.println("LIST OF SERVERS FILES");
                             filesIncurrentDirServer = (List<FileInfo>) odis.readObject();
                             System.out.println(filesIncurrentDirServer);
                             System.out.println("List FileInfo from server accepted");
-                            updateUI();
+                            updateUIServerTable();
+                            currentState = State.AWAIT;
+                        }
+                        if (currentState == State.ACCEPTING_FILE) {
+                            System.out.println("DOWNLOAD! ->" + currentDownloadingFile);
+                            BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(currentDir.resolve(currentDownloadingFile.getFullFileName()).toFile()));
+                            int countAcceptingBytes = 0;
+                            while (true) {
+                                bos.write(in.read());
+                                countAcceptingBytes++;
+                                if (currentDownloadingFile.getSize() == countAcceptingBytes) {
+                                    System.out.println("File has been accepted : " + countAcceptingBytes);
+                                    bos.close();
+                                    currentState = State.AWAIT;
+                                    break;
+                                }
+                            }
+                            Platform.runLater(() -> {
+                                downloadBtn.setDisable(false);
+                                downloadBtn.setText("download");
+                                updateUIClientTable();
+                            });
+                            currentState = State.AWAIT;
                         }
 
                     }
@@ -153,10 +197,7 @@ public class Controller implements Initializable {
                         out.close();
                     } catch (IOException ioException) {
                         ioException.printStackTrace();
-
-                        showAlert("Error while close connections");
-
-
+                        showAlert("Error while close connections", "warning");
                     }
 
                 }
@@ -167,58 +208,138 @@ public class Controller implements Initializable {
             t.start();
         } catch (IOException e) {
             e.printStackTrace();
-            showAlert("Error while connecting to server");
+            showAlert("Error while connecting to server", "warning");
 
         }
     }
 
     public void uploadFileToServer() {
-
         if (clientTable.isFocused()) {
             FileInfo fileToSend = clientTable.getSelectionModel().getSelectedItem();
-
-
             if (!fileToSend.getType().equals("DIR")) {
-                try {
-                    out.write(DataTypes.FILE.getSignalByte());
-                    out.writeInt(fileToSend.getPath().getFileName().toString().getBytes().length);
-                    out.write(fileToSend.getPath().getFileName().toString().getBytes());
-                    out.writeLong(fileToSend.getSize());
-                    FileWorker.bytesToFile(buffer, fileToSend.getFileInputStream(), this.out, fileToSend.getPath(), fileToSend.getSize());
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    showAlert("Error while uploading file to server");
-                }
+                uploadBtn.setDisable(true);
+                downloadBtn.setDisable(true);
+                uploadBtn.setText(">>>>>>>>");
+                new Thread(() -> {
+                    List<Byte> someByte = new ArrayList<>();
+                    byte[] b = new byte[10];
+
+                    try {
+                        currentState = State.FILE_UPLOADING;
+                        out.write(DataTypes.FILE.getByte());
+                        out.writeInt(fileToSend.getPath().getFileName().toString().getBytes().length);
+                        out.write(fileToSend.getPath().getFileName().toString().getBytes());
+                        out.writeLong(fileToSend.getSize());
+                        FileWorker.bytesToFile(buffer, fileToSend.getFileInputStream(), out, fileToSend.getSize());
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                        showAlert("Error while uploading file to server", "warning");
+                    }
+                    uploadBtn.setDisable(false);
+                    Platform.runLater(new Runnable() {
+                        @Override
+                        public void run() {
+                            uploadBtn.setText("upload");
+                            downloadBtn.setDisable(false);
+                            currentState = State.AWAIT;
+                        }
+                    });
+                }).start();
+
+
             }
         }
-//        updateView();
+
     }
 
-    private void updateUI() {
-        clientTable.getItems().clear();
+
+    public void downloadFile() {
+        if (serverTable.isFocused()) {
+            FileInfo fileToDownload = serverTable.getSelectionModel().getSelectedItem();
+            if (fileToDownload.getType().equals("DIR")) {
+                return;
+            }
+            downloadBtn.setDisable(true);
+            downloadBtn.setText("<<<<<<<<");
+            try {
+                currentDownloadingFile = fileToDownload;
+                out.write(DataTypes.FILE_REQUEST.getByte());
+                out.write(fileToDownload.getFullFileName().getBytes());
+
+
+            } catch (IOException e) {
+                e.printStackTrace();
+                showAlert("Error while request to download", "warning");
+            }
+
+        }
+    }
+
+
+    private void updateUIServerTable() {
+
+        serverPwd.setText(currentDirServer);
+
         serverTable.getItems().clear();
-        Path currentDir = Paths.get("client", "client_storage");
         serverTable.getItems().addAll(filesIncurrentDirServer);
+
+    }
+
+    private void updateUIClientTable() {
+        pwd.setText(currentDir.toString());
         try {
+            clientTable.getItems().clear();
             clientTable.getItems().addAll(Files.list(currentDir).map(FileInfo::new).collect(Collectors.toList()));
         } catch (IOException e) {
+            showAlert("Error while updating ui", "warning");
             e.printStackTrace();
         }
-
     }
 
-    public void showAlert(String msg) {
-        Alert alert = new Alert(Alert.AlertType.WARNING, msg, ButtonType.OK);
+    public void showAlert(String msg, String typeAlert) {
+        Alert alert;
+        if (typeAlert.equals("info")) {
+            alert = new Alert(Alert.AlertType.INFORMATION, msg, ButtonType.OK);
+        }
+        else {
+            alert = new Alert(Alert.AlertType.WARNING, msg, ButtonType.OK);
+        }
         alert.showAndWait();
     }
 
-    public void updateUiByServerChange(){
-        try {
-            out.write(DataTypes.UI_UPDATE_BY_SERVER_CHANGE.getSignalByte());
-        } catch (IOException e) {
-            e.printStackTrace();
-            showAlert("Connection problem");
+
+    public void deleteFileOrDirOnClient() {
+        if (clientTable.isFocused()) {
+            FileInfo fileToDelete = clientTable.getSelectionModel().getSelectedItem();
+            String FileOrDir = fileToDelete.getType().equals("DIR")? "Directory" : "File";
+
+            try {
+                boolean result = Files.deleteIfExists(fileToDelete.getPath());
+                if (result) {
+                    showAlert(FileOrDir +": " + fileToDelete.getFullFileName() + "has been deleted", "info");
+                } else {
+                    showAlert("Something wrong while deleting: " + FileOrDir + " " + fileToDelete.getFullFileName(), "warning");
+                }
+                updateUIClientTable();
+            } catch (IOException e) {
+                e.printStackTrace();
+                showAlert(e.toString(), "warning");
+
+            }
+
         }
+        if(serverTable.isFocused()){
+            FileInfo fileToDelete = serverTable.getSelectionModel().getSelectedItem();
+
+            try {
+                out.write(DataTypes.FILE_DELETE_REQUEST.getByte());
+                out.write(fileToDelete.getFullFileName().getBytes());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
     }
+
 
 }
